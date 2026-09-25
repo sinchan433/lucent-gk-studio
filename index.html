@@ -1151,8 +1151,8 @@
           </div>
 
           <div style="display:flex; align-items:center; gap:10px;">
-            <!-- Robust Resumable TTS Controls -->
-            <button id="tts-play-btn" class="primary" style="padding:5px 12px; font-size:0.8rem;" onclick="toggleReadAloud()" title="Read question aloud, pause, or resume">🔊 Read Aloud</button>
+            <!-- Clean Read Aloud & Stop Audio Controls -->
+            <button id="tts-play-btn" class="primary" style="padding:5px 12px; font-size:0.8rem;" onclick="startReadAloud()" title="Read question aloud">🔊 Read Aloud</button>
             <button id="tts-stop-btn" style="padding:5px 10px; font-size:0.8rem; display:none;" onclick="stopReadAloud()" title="Stop speech">⏹️ Stop</button>
 
             <button id="qz-seen-btn" class="seen-btn-toolbar" onclick="onQuizSeenButtonClick()" title="Click to cycle: Unseen -> Seen Once -> Seen Twice -> Unseen">
@@ -1319,7 +1319,7 @@
     </div>
   </div>
 
-  <!-- ALREADY-ATTEMPTED CARD INSPECT MODAL WITH RESUMABLE READ ALOUD -->
+  <!-- ALREADY-ATTEMPTED CARD INSPECT MODAL WITH READ ALOUD -->
   <div id="card-inspect-modal" class="modal-overlay">
     <div class="modal-box" style="max-width: 800px; padding: 24px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--border); padding-bottom:12px;">
@@ -1328,7 +1328,7 @@
           <span class="badge" id="insp-top" style="background:#233559;">Topic</span>
         </div>
         <div style="display:flex; align-items:center; gap:10px;">
-          <button id="insp-tts-play-btn" class="primary" style="padding:4px 10px; font-size:0.8rem;" onclick="toggleInspectReadAloud()" title="Read question aloud, pause, or resume">🔊 Read Aloud</button>
+          <button id="insp-tts-play-btn" class="primary" style="padding:4px 10px; font-size:0.8rem;" onclick="startInspectReadAloud()" title="Read question aloud">🔊 Read Aloud</button>
           <button id="insp-tts-stop-btn" style="padding:4px 8px; font-size:0.8rem; display:none;" onclick="stopInspectReadAloud()" title="Stop speech">⏹️ Stop</button>
 
           <div id="insp-seen-btn" class="seen-btn-toolbar" onclick="onInspectModalSeenClick()" title="Click to cycle status">
@@ -1379,7 +1379,8 @@
           <p id="replay-subtitle" style="font-size:0.85rem; color:var(--text-muted); margin-top:2px;"></p>
         </div>
         <div style="display:flex; gap:8px; align-items:center;">
-          <button class="primary" style="padding:4px 10px; font-size:0.8rem;" onclick="readAloudReplayCard()" title="Read question and solution aloud">🔊 Read Aloud</button>
+          <button id="rep-tts-play-btn" class="primary" style="padding:4px 10px; font-size:0.8rem;" onclick="startReplayReadAloud()" title="Read question aloud">🔊 Read Aloud</button>
+          <button id="rep-tts-stop-btn" style="padding:4px 8px; font-size:0.8rem; display:none;" onclick="stopReplayReadAloud()" title="Stop speech">⏹️ Stop</button>
           <span id="replay-result-pill" class="replay-status-badge correct">Correct</span>
           <button onclick="closeHistoryReplayModal()" style="border-color:var(--danger); color:var(--danger);">✕ Close</button>
         </div>
@@ -1713,8 +1714,8 @@
     let activeEditorTop = null;
     let selectedVoiceURI = localStorage.getItem('lucent_preferred_voice') || '';
 
-    let ttsIsPaused = false;
-    let inspectTtsIsPaused = false;
+    // Active randomized MCQ mapping for the current session question
+    let activeShuffledMapping = null;
 
     const DEFAULT_LUCENT_MAP = {
       "Ancient Indian History": [
@@ -1844,7 +1845,7 @@
         store.clear();
         items.forEach(it => store.put(it));
         tx.oncomplete = () => resolve();
-        req.onerror = () => reject(req.error);
+        tx.onerror = () => reject(tx.error);
       });
     }
 
@@ -2280,6 +2281,7 @@
       }
       if (viewId !== 'quiz') stopReadAloud();
       stopInspectReadAloud();
+      stopReplayReadAloud();
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       document.getElementById(viewId).classList.add('active');
       if (viewId === 'dashboard') {
@@ -2642,7 +2644,7 @@
     }
 
     // ==========================================
-    // ROBUST RESUMABLE TTS ENGINE (BIXBY TONE)
+    // BULLETPROOF SYNCHRONIZED TTS ENGINE (READ & STOP)
     // ==========================================
     function getSelectedVoiceObj() {
       if (!('speechSynthesis' in window)) return null;
@@ -2658,7 +2660,7 @@
       return voices.find(v => v.lang.startsWith('en')) || voices[0] || null;
     }
 
-    function toggleReadAloud() {
+    function startReadAloud() {
       if (!('speechSynthesis' in window)) {
         return alert('Text-to-speech is not supported by your browser.');
       }
@@ -2666,34 +2668,18 @@
       const playBtn = document.getElementById('tts-play-btn');
       const stopBtn = document.getElementById('tts-stop-btn');
 
-      if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
-        window.speechSynthesis.pause();
-        ttsIsPaused = true;
-        playBtn.textContent = '▶️ Resume';
-        return;
-      }
-
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-        ttsIsPaused = false;
-        playBtn.textContent = '⏸️ Pause';
-        return;
-      }
-
       const c = currentSession[activeIndex];
       if (!c) return;
 
       let textToSpeak = `Question. ${c.prompt || ''}. `;
-      if (c.type === 'mcq' && c.mcq) {
-        textToSpeak += `Option A: ${c.mcq.A}. Option B: ${c.mcq.B}. Option C: ${c.mcq.C}. Option D: ${c.mcq.D}.`;
+      if (c.type === 'mcq' && c.mcq && activeShuffledMapping) {
+        ['A', 'B', 'C', 'D'].forEach(displayLetter => {
+          const origLetter = activeShuffledMapping.displayToOriginal[displayLetter];
+          const optText = c.mcq[origLetter];
+          textToSpeak += `Option ${displayLetter}: ${optText}. `;
+        });
       }
 
-      ttsIsPaused = false;
-      playUtteranceSegment(textToSpeak, playBtn, stopBtn, (isPausedState) => { ttsIsPaused = isPausedState; });
-    }
-
-    function playUtteranceSegment(textToSpeak, playBtn, stopBtn, setPausedCallback) {
-      if (!textToSpeak) return;
       window.speechSynthesis.cancel();
 
       const utterance = new SpeechSynthesisUtterance(textToSpeak);
@@ -2706,7 +2692,7 @@
       }
 
       utterance.onstart = () => {
-        playBtn.textContent = '⏸️ Pause';
+        playBtn.textContent = '🔊 Reading...';
         stopBtn.style.display = 'inline-block';
       };
 
@@ -2727,33 +2713,18 @@
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
-      ttsIsPaused = false;
       const playBtn = document.getElementById('tts-play-btn');
       const stopBtn = document.getElementById('tts-stop-btn');
       if (playBtn) playBtn.textContent = '🔊 Read Aloud';
       if (stopBtn) stopBtn.style.display = 'none';
     }
 
-    // Resumable Read Aloud for Card Inspect Modal (Saved, Mistakes, History, etc.)
-    function toggleInspectReadAloud() {
+    // Read Aloud for Card Inspect Modal
+    function startInspectReadAloud() {
       if (!activeInspectCardId || !('speechSynthesis' in window)) return;
 
       const playBtn = document.getElementById('insp-tts-play-btn');
       const stopBtn = document.getElementById('insp-tts-stop-btn');
-
-      if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
-        window.speechSynthesis.pause();
-        inspectTtsIsPaused = true;
-        playBtn.textContent = '▶️ Resume';
-        return;
-      }
-
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-        inspectTtsIsPaused = false;
-        playBtn.textContent = '⏸️ Pause';
-        return;
-      }
 
       const card = questionsDeck.find(c => c.id === activeInspectCardId);
       if (!card) return;
@@ -2767,7 +2738,6 @@
         text += `Solution and Notes: ${card.answer}.`;
       }
 
-      inspectTtsIsPaused = false;
       window.speechSynthesis.cancel();
 
       const utterance = new SpeechSynthesisUtterance(text);
@@ -2777,7 +2747,7 @@
       if (activeVoice) utterance.voice = activeVoice;
 
       utterance.onstart = () => {
-        playBtn.textContent = '⏸️ Pause';
+        playBtn.textContent = '🔊 Reading...';
         stopBtn.style.display = 'inline-block';
       };
 
@@ -2798,34 +2768,70 @@
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
-      inspectTtsIsPaused = false;
       const playBtn = document.getElementById('insp-tts-play-btn');
       const stopBtn = document.getElementById('insp-tts-stop-btn');
       if (playBtn) playBtn.textContent = '🔊 Read Aloud';
       if (stopBtn) stopBtn.style.display = 'none';
     }
 
-    function readAloudReplayCard() {
+    // Read Aloud for History Replay Modal
+    function startReplayReadAloud() {
       if (!activeReplayRecord || !activeReplayRecord.sessionCards || !('speechSynthesis' in window)) return;
-      window.speechSynthesis.cancel();
+
+      const playBtn = document.getElementById('rep-tts-play-btn');
+      const stopBtn = document.getElementById('rep-tts-stop-btn');
+
       const card = activeReplayRecord.sessionCards[activeReplayIndex];
       if (!card) return;
 
       let text = `Question. ${card.prompt || ''}. `;
       if (card.type === 'mcq' && card.mcq) {
-        text += `Option A: ${card.mcq.A}. Option B: ${card.mcq.B}. Option C: ${card.mcq.C}. Option D: ${card.mcq.D}. `;
-        text += `Correct Option: ${card.mcq.correct}. `;
+        const mapping = card._shuffledMapping;
+        const correctDisplay = mapping ? mapping.originalToDisplay[card.mcq.correct] : card.mcq.correct;
+        ['A', 'B', 'C', 'D'].forEach(displayLetter => {
+          const origLetter = mapping ? mapping.displayToOriginal[displayLetter] : displayLetter;
+          text += `Option ${displayLetter}: ${card.mcq[origLetter]}. `;
+        });
+        text += `Correct Option: ${correctDisplay}. `;
       }
       if (card.answer) {
         text += `Solution and Notes: ${card.answer}.`;
       }
+
+      window.speechSynthesis.cancel();
 
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = 0.95;
       utterance.pitch = 1.15;
       const activeVoice = getSelectedVoiceObj();
       if (activeVoice) utterance.voice = activeVoice;
+
+      utterance.onstart = () => {
+        playBtn.textContent = '🔊 Reading...';
+        stopBtn.style.display = 'inline-block';
+      };
+
+      utterance.onend = () => {
+        playBtn.textContent = '🔊 Read Aloud';
+        stopBtn.style.display = 'none';
+      };
+
+      utterance.onerror = () => {
+        playBtn.textContent = '🔊 Read Aloud';
+        stopBtn.style.display = 'none';
+      };
+
       window.speechSynthesis.speak(utterance);
+    }
+
+    function stopReplayReadAloud() {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      const playBtn = document.getElementById('rep-tts-play-btn');
+      const stopBtn = document.getElementById('rep-tts-stop-btn');
+      if (playBtn) playBtn.textContent = '🔊 Read Aloud';
+      if (stopBtn) stopBtn.style.display = 'none';
     }
 
     if ('speechSynthesis' in window) {
@@ -3164,7 +3170,9 @@
         if (!userChoice) {
           unattempted++;
         } else if (card.type === 'mcq' && card.mcq) {
-          if (userChoice === card.mcq.correct) correctCount++;
+          const mapping = card._shuffledMapping;
+          const userChoiceOrig = mapping ? mapping.displayToOriginal[userChoice] : userChoice;
+          if (userChoiceOrig === card.mcq.correct) correctCount++;
           else incorrectCount++;
         } else {
           correctCount++;
@@ -3544,12 +3552,14 @@
     }
 
     function closeHistoryReplayModal() {
+      stopReplayReadAloud();
       activeReplayRecord = null;
       document.getElementById('history-replay-modal').style.display = 'none';
     }
 
     function renderActiveReplayCard() {
       if (!activeReplayRecord) return;
+      stopReplayReadAloud();
       const total = activeReplayRecord.sessionCards.length;
       const card = activeReplayRecord.sessionCards[activeReplayIndex];
       const userChoice = (activeReplayRecord.userAnswers || {})[card.id];
@@ -3564,7 +3574,9 @@
         pill.className = 'replay-status-badge unattempted';
         pill.textContent = '⚪ Unattempted in Test';
       } else if (card.type === 'mcq' && card.mcq) {
-        if (userChoice === card.mcq.correct) {
+        const mapping = card._shuffledMapping;
+        const userChoiceOrig = mapping ? mapping.displayToOriginal[userChoice] : userChoice;
+        if (userChoiceOrig === card.mcq.correct) {
           pill.className = 'replay-status-badge correct';
           pill.textContent = '✓ Answered Correctly';
         } else {
@@ -3588,9 +3600,14 @@
       if (card.type === 'mcq' && card.mcq) {
         mcqBox.style.display = 'flex';
         mcqBox.innerHTML = '';
-        ['A', 'B', 'C', 'D'].forEach(letter => {
-          const isCorrect = (card.mcq.correct === letter);
-          const wasSelected = (userChoice === letter);
+        const mapping = card._shuffledMapping;
+        const correctDisplay = mapping ? mapping.originalToDisplay[card.mcq.correct] : card.mcq.correct;
+        const userChoiceOrig = mapping ? mapping.displayToOriginal[userChoice] : userChoice;
+
+        ['A', 'B', 'C', 'D'].forEach(displayLetter => {
+          const origLetter = mapping ? mapping.displayToOriginal[displayLetter] : displayLetter;
+          const isCorrect = (displayLetter === correctDisplay);
+          const wasSelected = (userChoice === displayLetter);
           const optDiv = document.createElement('div');
 
           let optClass = 'mcq-option';
@@ -3609,7 +3626,7 @@
 
           optDiv.className = optClass;
           optDiv.style.cursor = 'default';
-          optDiv.innerHTML = `<strong>${letter}.</strong> ${escapeHtml(card.mcq[letter])} ${extraTag}`;
+          optDiv.innerHTML = `<strong>${displayLetter}.</strong> ${escapeHtml(card.mcq[origLetter])} ${extraTag}`;
           mcqBox.appendChild(optDiv);
         });
       } else {
@@ -3622,7 +3639,9 @@
 
       let solHtml = '';
       if (card.type === 'mcq' && card.mcq) {
-        solHtml += `<p style="color:var(--accent); font-weight:700; margin-bottom:6px;">Correct Option: ${card.mcq.correct} - ${escapeHtml(card.mcq[card.mcq.correct])}</p>`;
+        const mapping = card._shuffledMapping;
+        const correctDisplay = mapping ? mapping.originalToDisplay[card.mcq.correct] : card.mcq.correct;
+        solHtml += `<p style="color:var(--accent); font-weight:700; margin-bottom:6px;">Correct Option: ${correctDisplay} - ${escapeHtml(card.mcq[card.mcq.correct])}</p>`;
       }
       if (card.answer) {
         solHtml += `<p>${escapeHtml(card.answer)}</p>`;
@@ -3782,7 +3801,7 @@
       box.innerHTML = '';
 
       if (activeChaptersFilterMode === 'mindmaps_only') {
-        titleEl.textContent = '🗺️ Lucent GK Mind Map Atlas by Chapter';
+        titleEl.textContent = '🗺️ Mind Map Atlas by Chapter';
         subtitleEl.textContent = 'Browse and inspect flowcharts and diagrams chapter by chapter. (Only mind maps are available here)';
         bannerEl.style.display = 'flex';
       } else {
@@ -4421,7 +4440,7 @@
         if (a.isMistake !== b.isMistake) return a.isMistake ? -1 : 1;
         return a.nextReview - b.nextReview;
       });
-      if (pool.length === 0) return alert('No due cards right now! Great job.');
+      if (pool.length === 0) return alert('No due cards right now! Good job.');
       currentSession = pool;
       previousViewBeforeQuiz = 'dashboard';
       currentSessionScope = 'Due Spaced Repetition';
@@ -4464,6 +4483,26 @@
       mockUserAnswers = {};
       sessionElapsedSeconds = 0;
 
+      // FRESH JUMBLE GENERATION FOR EVERY NEW SESSION LAUNCH
+      currentSession.forEach(c => {
+        if (c.type === 'mcq' && c.mcq) {
+          const keys = ['A', 'B', 'C', 'D'];
+          const shuffledKeys = fisherYatesShuffle(keys);
+          const displayToOriginal = {};
+          const originalToDisplay = {};
+          keys.forEach((displayKey, idx) => {
+            const origKey = shuffledKeys[idx];
+            displayToOriginal[displayKey] = origKey;
+            originalToDisplay[origKey] = displayKey;
+          });
+          c._shuffledMapping = {
+            displayToOriginal,
+            originalToDisplay,
+            originalCorrect: c.mcq.correct
+          };
+        }
+      });
+
       navigate('quiz');
 
       if (timerInterval) {
@@ -4490,7 +4529,7 @@
           }, 1000);
         } else {
           isCountdownTimer = true;
-          let totalSeconds = 600; // default 10 mins
+          let totalSeconds = 600;
 
           if (timerConfig === '30s') {
             totalSeconds = currentSession.length * 30;
@@ -4577,6 +4616,8 @@
 
       solBox.style.display = 'none';
 
+      activeShuffledMapping = c._shuffledMapping || null;
+
       if (activeTestMode === 'practice') {
         practiceActions.style.display = 'flex';
         document.getElementById('btn-show-sol').style.display = 'inline-block';
@@ -4593,14 +4634,17 @@
         evalPrevBtn.disabled = (activeIndex === 0);
         evalNextBtn.disabled = (activeIndex === currentSession.length - 1);
 
-        if (c.type === 'mcq' && c.mcq) {
+        if (c.type === 'mcq' && c.mcq && activeShuffledMapping) {
           mcqBox.style.display = 'flex';
           mcqBox.innerHTML = '';
-          ['A', 'B', 'C', 'D'].forEach(letter => {
+          ['A', 'B', 'C', 'D'].forEach(displayLetter => {
+            const origLetter = activeShuffledMapping.displayToOriginal[displayLetter];
+            const optText = c.mcq[origLetter];
             const btn = document.createElement('div');
             btn.className = 'mcq-option';
-            btn.innerHTML = `<strong>${letter}.</strong> ${escapeHtml(c.mcq[letter])}`;
-            btn.onclick = () => handlePracticeMCQClick(btn, letter, c.mcq.correct);
+            btn.innerHTML = `<strong>${displayLetter}.</strong> ${escapeHtml(optText)}`;
+            const correctDisplay = activeShuffledMapping.originalToDisplay[c.mcq.correct];
+            btn.onclick = () => handlePracticeMCQClick(btn, displayLetter, correctDisplay);
             mcqBox.appendChild(btn);
           });
         } else {
@@ -4616,16 +4660,18 @@
         document.getElementById('btn-mock-next').style.display = isLastQuestion ? 'none' : 'inline-block';
         document.getElementById('btn-mock-finish').style.display = isLastQuestion ? 'inline-block' : 'none';
 
-        if (c.type === 'mcq' && c.mcq) {
+        if (c.type === 'mcq' && c.mcq && activeShuffledMapping) {
           mcqBox.style.display = 'flex';
           mcqBox.innerHTML = '';
-          const savedChoice = mockUserAnswers[c.id];
-          ['A', 'B', 'C', 'D'].forEach(letter => {
+          const savedChoiceDisplay = mockUserAnswers[c.id];
+          ['A', 'B', 'C', 'D'].forEach(displayLetter => {
+            const origLetter = activeShuffledMapping.displayToOriginal[displayLetter];
+            const optText = c.mcq[origLetter];
             const btn = document.createElement('div');
-            btn.className = 'mcq-option' + (savedChoice === letter ? ' selected' : '');
-            btn.innerHTML = `<strong>${letter}.</strong> ${escapeHtml(c.mcq[letter])}`;
+            btn.className = 'mcq-option' + (savedChoiceDisplay === displayLetter ? ' selected' : '');
+            btn.innerHTML = `<strong>${displayLetter}.</strong> ${escapeHtml(optText)}`;
             btn.onclick = () => {
-              mockUserAnswers[c.id] = letter;
+              mockUserAnswers[c.id] = displayLetter;
               document.querySelectorAll('.mcq-option').forEach(b => b.classList.remove('selected'));
               btn.classList.add('selected');
             };
@@ -4637,14 +4683,14 @@
       }
     }
 
-    function handlePracticeMCQClick(el, chosen, correct) {
+    function handlePracticeMCQClick(el, chosenDisplay, correctDisplay) {
       document.querySelectorAll('.mcq-option').forEach(btn => btn.onclick = null);
-      if (chosen === correct) {
+      if (chosenDisplay === correctDisplay) {
         el.classList.add('correct');
       } else {
         el.classList.add('wrong');
         document.querySelectorAll('.mcq-option').forEach(btn => {
-          if (btn.innerText.startsWith(correct)) btn.classList.add('correct');
+          if (btn.innerText.startsWith(correctDisplay)) btn.classList.add('correct');
         });
       }
       showSolution();
@@ -4658,7 +4704,8 @@
 
       let html = '';
       if (c.type === 'mcq' && c.mcq) {
-        html += `<p style="color:var(--accent); font-weight:700; margin-bottom:6px;">Correct Option: ${c.mcq.correct} - ${escapeHtml(c.mcq[c.mcq.correct])}</p>`;
+        const correctDisplay = activeShuffledMapping ? activeShuffledMapping.originalToDisplay[c.mcq.correct] : c.mcq.correct;
+        html += `<p style="color:var(--accent); font-weight:700; margin-bottom:6px;">Correct Option: ${correctDisplay} - ${escapeHtml(c.mcq[c.mcq.correct])}</p>`;
       }
       if (c.answer) html += `<p>${escapeHtml(c.answer)}</p>`;
       solText.innerHTML = html;
@@ -4688,7 +4735,6 @@
       } else {
         target.level = Math.min(5, (target.level || 0) + 1);
         
-        // INCREMENT SEEN COUNT STEP-BY-STEP UP TO 2 (SEEN TWICE)
         if (!target.isMastered) {
           const currentSeen = target.seenCount || 0;
           if (currentSeen < 2) {
@@ -4696,7 +4742,6 @@
           }
         }
 
-        // SPACED MASTERY CHECK (Requires correct review across separate days / intervals)
         const lastReviewTime = target.lastSuccessfulReviewTime || 0;
         const hoursSinceLastReview = (now - lastReviewTime) / (1000 * 60 * 60);
 
@@ -4763,12 +4808,15 @@
 
       for (const card of currentSession) {
         const target = questionsDeck.find(c => c.id === card.id);
-        const userChoice = mockUserAnswers[card.id];
+        const userChoiceDisplay = mockUserAnswers[card.id];
 
-        if (!userChoice) {
+        if (!userChoiceDisplay) {
           unattempted++;
         } else if (card.type === 'mcq' && card.mcq) {
-          if (userChoice === card.mcq.correct) {
+          const mapping = card._shuffledMapping;
+          const userChoiceOrig = mapping ? mapping.displayToOriginal[userChoiceDisplay] : userChoiceDisplay;
+
+          if (userChoiceOrig === card.mcq.correct) {
             correctCount++;
             target.level = Math.min(5, (target.level || 0) + 1);
 
