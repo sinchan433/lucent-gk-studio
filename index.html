@@ -23,11 +23,33 @@
       --border: #233559;
     }
 
+    /* Custom Theme-Matched Scrollbars (Firefox & Webkit) */
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) var(--bg);
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 4px;
+      border: 2px solid var(--bg);
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent);
     }
 
     body {
@@ -481,8 +503,6 @@
     }
 
     .subtopics-drawer.open { display: block; }
-    .subtopics-drawer::-webkit-scrollbar { width: 4px; }
-    .subtopics-drawer::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
     .subtopic-item-row {
       display: flex;
@@ -668,9 +688,16 @@
       flex-wrap: wrap;
     }
 
+    /* Custom Mind Map Full Screen Modal Override */
+    #viewer-modal.modal-overlay {
+      background: #090e17 !important;
+      padding: 12px !important;
+    }
+
+    /* Expanded Mind Map Viewport */
     .zoom-viewport {
       width: 100%;
-      height: 72vh;
+      height: 88vh;
       overflow: auto;
       border: 1px solid var(--border);
       background: #060910;
@@ -682,6 +709,24 @@
     }
 
     #viewer-img { max-width: 100%; transition: transform 0.2s ease-out; transform-origin: center center; }
+
+    /* Custom Hover Effect for Viewer Close Button */
+    .viewer-close-btn {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      padding: 7px 12px;
+      border-radius: 7px;
+      cursor: pointer;
+      font-size: 0.84rem;
+      transition: all 0.2s;
+    }
+    .viewer-close-btn:hover {
+      background: var(--danger);
+      color: #ffffff !important;
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
+      border-color: var(--danger);
+    }
 
     .mock-header {
       display: flex;
@@ -761,6 +806,9 @@
         </div>
       </div>
 
+      <!-- FULL SCREEN TOGGLE BUTTON -->
+      <button id="fullscreen-btn" onclick="toggleFullScreen()" title="Toggle Full Screen (Immersive Mode)" style="border-color:var(--sky); color:var(--sky); font-weight:700;">⛶ Full Screen</button>
+
       <input type="file" id="file-restore" style="display:none" accept=".json" onchange="importBackupSafe(event)" />
     </nav>
   </header>
@@ -825,7 +873,7 @@
           <div>
             <h3 style="color: var(--danger);">❌ Mistake Bank Spaced Recovery Queue</h3>
             <p style="font-size:0.85rem; color: var(--text-muted); margin-top:2px;">
-              Review missed questions based on scheduled spaced intervals (24h → 48h → 7d → 1m → 3m → 4m). Answer correctly 3 times to clear from mistakes!
+              Review missed questions based on scheduled spaced intervals. Answer correctly 3 times to clear from mistakes!
             </p>
           </div>
           <button class="primary" style="background:var(--danger); color:#fff;" onclick="startMistakeRecoveryQueue()">⚡ Drill Due Mistakes</button>
@@ -1413,7 +1461,7 @@
 
   <!-- FULL-SCREEN ZOOM VIEWER FOR MIND MAPS -->
   <div id="viewer-modal" class="modal-overlay">
-    <div class="modal-box" style="max-width: 96vw; width: 96vw; height: 94vh; max-height: 94vh;">
+    <div class="modal-box" style="max-width: 98vw; width: 98vw; height: 96vh; max-height: 96vh;">
       <div class="viewer-toolbar">
         <button id="btn-vm-prev" onclick="navigateViewer(-1)" style="font-weight:700;">← Prev Map (◀)</button>
         <span id="viewer-counter" style="font-size:0.9rem; font-weight:700; color:var(--accent); min-width:60px; text-align:center;">1 / 1</span>
@@ -1428,7 +1476,7 @@
         <button onclick="adjustZoom(0.25)">🔍 Zoom (+)</button>
         <button onclick="adjustZoom(-0.25)">🔍 Zoom (-)</button>
         <button onclick="resetZoom()">Reset</button>
-        <button onclick="closeViewerModal()" style="border-color:var(--danger); color:var(--danger);">✕ Close (Esc)</button>
+        <button class="viewer-close-btn" onclick="closeViewerModal()">✕ Close</button>
       </div>
       <div class="zoom-viewport">
         <img id="viewer-img" />
@@ -1497,6 +1545,9 @@
         <select id="mock-timer-duration">
           <option value="countup">⏱️ Stopwatch (Count Up Elapsed Time)</option>
           <option value="auto" selected>⏳ Countdown: 1 Minute Per Question</option>
+          <option value="30s">⏳ Countdown: 30 Seconds Per Question</option>
+          <option value="20s">⏳ Countdown: 20 Seconds Per Question</option>
+          <option value="10s">⏳ Countdown: 10 Seconds Per Question</option>
           <option value="5">⏳ Countdown: 5 Minutes Total</option>
           <option value="10">⏳ Countdown: 10 Minutes Total</option>
           <option value="15">⏳ Countdown: 15 Minutes Total</option>
@@ -1602,40 +1653,41 @@
   <div id="instruction-modal" class="modal-overlay">
     <div class="modal-box" style="max-width: 750px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid var(--border); padding-bottom:10px;">
-        <h3>🌟 Lucent GK Studio: Master Guide & Rulebook</h3>
+        <h3>🌟 Lucent GK Studio: How to Master Your GK</h3>
         <button onclick="closeInstructionModal()">✕ Close</button>
       </div>
       <div style="max-height: 65vh; overflow-y: auto; font-size: 0.9rem; line-height: 1.6; color: var(--text); padding-right: 4px;">
-        <h4 style="color: var(--accent); margin-top: 10px;">1. Retention Status & Mastery (The 3-State Cycle)</h4>
-        <p style="margin-bottom: 8px;">Every question tracks familiarity using an interactive color-coded <strong>Seen Circle</strong>:</p>
+        <p style="margin-bottom: 12px;">Welcome to your personal revision studio! This tool is designed to help you memorize facts permanently without forgetting them before the exam. Here is how to use it step-by-step.</p>
+
+        <h4 style="color: var(--accent); margin-top: 10px;">1. How to Study Daily</h4>
         <ul style="margin-left: 20px; margin-bottom: 12px;">
-          <li><strong>0 / Unseen (Dark Slate):</strong> Brand new or never reviewed questions.</li>
-          <li><strong>1 / Seen Once (Gray):</strong> Reviewed or attempted once.</li>
-          <li><strong>2 / Seen Twice (Orange):</strong> Reinforced through secondary review.</li>
-          <li><strong>✓ / Mastered (Green):</strong> Automatically locked when answered correctly across 2 separate spaced sessions.</li>
+          <li><strong>Learn New Topics:</strong> Go to <strong>Book Chapters</strong> to read and practice questions topic by topic.</li>
+          <li><strong>Clear Your Dues:</strong> Every day, click <strong>Practice Due Questions</strong> on the dashboard. The app automatically brings back older questions just before you are about to forget them.</li>
+          <li><strong>Test Yourself:</strong> Take a <strong>Random Mock Test</strong> to evaluate your overall preparation.</li>
         </ul>
+
+        <h4 style="color: var(--accent); margin-top: 10px;">2. Understanding the Colored Circles (Your Progress)</h4>
+        <p style="margin-bottom: 8px;">Every question has a circle showing how well you know it. They upgrade automatically as you answer correctly:</p>
+        <ul style="margin-left: 20px; margin-bottom: 12px;">
+          <li><strong>0 (Dark): Unseen</strong> - You haven't practiced this yet.</li>
+          <li><strong>1 (Gray): Seen Once</strong> - You got it right once.</li>
+          <li><strong>2 (Orange): Seen Twice</strong> - You got it right again.</li>
+          <li><strong>✓ (Green): Mastered</strong> - You answered it correctly on <em>two completely different days</em>. You cannot master a card by answering it 3 times in one minute! Spacing is required.</li>
+        </ul>
+        <p style="margin-bottom: 12px; font-size: 0.85rem; color: var(--text-muted);"><em>Tip: You can also click these circles manually at any time to change their status.</em></p>
         
-        <h4 style="color: var(--accent); margin-top: 10px;">2. Spaced Repetition & Leitner Mistake Recovery</h4>
+        <h4 style="color: var(--danger); margin-top: 10px;">3. The Mistake Bank (Fixing Weaknesses)</h4>
         <ul style="margin-left: 20px; margin-bottom: 12px;">
-          <li><strong>Spaced Repetition:</strong> Correct answers dynamically push your next review interval further out (1 → 3 → 7 → 14 → 30 days).</li>
-          <li><strong>Mistake Bank Recovery Queue:</strong> Missed questions enter a strict 5-stage Leitner spaced recovery pipeline (24h → 48h → 7d → 30d → 90d). You must answer a missed question correctly 3 times to clear it.</li>
+          <li>If you answer a question incorrectly, it immediately goes to the <strong>Mistake Bank</strong>.</li>
+          <li><strong>How to clear it:</strong> You cannot clear a mistake instantly. You must open the Mistake Bank and answer that question correctly across <strong>3 separate spaced reviews</strong> (e.g., today, tomorrow, and next week). Only then is it "delogged" and returned to normal.</li>
         </ul>
 
-        <h4 style="color: var(--accent); margin-top: 10px;">3. Study Workspaces & Modes</h4>
-        <ul style="margin-left: 20px; margin-bottom: 12px;">
-          <li><strong>Practice Mode:</strong> Instant feedback, detailed solutions, personal mnemonic notes, and flexible navigation.</li>
-          <li><strong>Exam Simulation Mode:</strong> Enforces a countdown or stopwatch timer with bulk submittal at the end.</li>
-          <li><strong>Card Inspection:</strong> View saved or mistaken cards with full resumable text-to-speech audio controls (Play / Pause / Resume / Stop).</li>
-          <li><strong>Mind Map Atlas:</strong> Visual repository for flowcharts and diagrams with zoom viewport and arrow-key navigation.</li>
+        <h4 style="color: var(--sky); margin-top: 10px;">4. Saved Cards & History</h4>
+        <ul style="margin-left: 20px; margin-bottom: 10px;">
+          <li><strong>⭐ Starred/Saved:</strong> If a question is tricky, click the Star icon. Practice all your starred questions together before an exam.</li>
+          <li><strong>History:</strong> Want to know why your mock score was low? Go to History, click your past test, and review exactly what you marked wrong.</li>
+          <li><strong>Mind Maps:</strong> Visual learner? Open the Mind Map Atlas to see flowcharts that connect to your questions.</li>
         </ul>
-
-        <h4 style="color: var(--accent); margin-top: 10px;">4. How to Master Things (Actionable Strategy)</h4>
-        <ol style="margin-left: 20px; margin-bottom: 10px;">
-          <li>Clear your <strong>Due Cards</strong> daily from the dashboard queue.</li>
-          <li>Hammer down recurrent errors using the <strong>Mistake Bank</strong> recovery queue.</li>
-          <li>Bookmark high-yield facts using the <strong>⭐ Star Question</strong> button.</li>
-          <li>Pair MCQs with the <strong>Mind Map Atlas</strong> to build spatial memory.</li>
-        </ol>
       </div>
     </div>
   </div>
@@ -1843,6 +1895,37 @@
       renderStats();
       renderDashboardMistakeQueue();
     }
+
+    // ==========================================
+    // FULL SCREEN TOGGLE ENGINE
+    // ==========================================
+    function toggleFullScreen() {
+      const btn = document.getElementById('fullscreen-btn');
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().then(() => {
+          btn.textContent = '✕ Exit Full Screen';
+        }).catch(err => {
+          alert(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+        });
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().then(() => {
+            btn.textContent = '⛶ Full Screen';
+          });
+        }
+      }
+    }
+
+    document.addEventListener('fullscreenchange', () => {
+      const btn = document.getElementById('fullscreen-btn');
+      if (btn) {
+        if (document.fullscreenElement) {
+          btn.textContent = '✕ Exit Full Screen';
+        } else {
+          btn.textContent = '⛶ Full Screen';
+        }
+      }
+    });
 
     // ==========================================
     // 2. DROPDOWN CONTROLS & VOICE SETTINGS MODAL
@@ -4049,20 +4132,38 @@
         return;
       }
 
+      // Check if Mind Map Zoom Viewer is open
       const isViewerOpen = document.getElementById('viewer-modal').style.display === 'flex';
-      if (!isViewerOpen) return;
-
-      if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        navigateViewer(-1);
-      } else if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        navigateViewer(1);
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        closeViewerModal();
+      if (isViewerOpen) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          e.stopPropagation();
+          closeViewerModal();
+          return;
+        } else if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          navigateViewer(-1);
+          return;
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          navigateViewer(1);
+          return;
+        }
       }
-    });
+
+      // Handle Arrow Navigation in Practice Mode
+      const isQuizActive = document.getElementById('quiz').classList.contains('active');
+      if (isQuizActive && activeTestMode === 'practice') {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          if (activeIndex > 0) practiceNavigate(-1);
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          if (activeIndex < currentSession.length - 1) practiceNavigate(1);
+        }
+      }
+    }, true);
 
     // ==========================================
     // 13. QUESTIONS & MOCK DRILLS
@@ -4389,19 +4490,27 @@
           }, 1000);
         } else {
           isCountdownTimer = true;
-          let totalMinutes = 10;
-          if (timerConfig === 'auto') {
-            totalMinutes = Math.max(1, currentSession.length);
+          let totalSeconds = 600; // default 10 mins
+
+          if (timerConfig === '30s') {
+            totalSeconds = currentSession.length * 30;
+          } else if (timerConfig === '20s') {
+            totalSeconds = currentSession.length * 20;
+          } else if (timerConfig === '10s') {
+            totalSeconds = currentSession.length * 10;
+          } else if (timerConfig === 'auto') {
+            totalSeconds = Math.max(1, currentSession.length) * 60;
           } else {
-            totalMinutes = parseInt(timerConfig, 10) || 10;
+            totalSeconds = (parseInt(timerConfig, 10) || 10) * 60;
           }
-          timerSeconds = totalMinutes * 60;
+
+          timerSeconds = totalSeconds;
 
           const updateCountdownDisplay = () => {
             const mins = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
             const secs = String(timerSeconds % 60).padStart(2, '0');
             timerEl.textContent = `⏳ ${mins}:${secs}`;
-            if (timerSeconds <= 60) {
+            if (timerSeconds <= 30) {
               timerEl.classList.add('urgent');
             } else {
               timerEl.classList.remove('urgent');
@@ -4578,7 +4687,26 @@
         target.nextReview = now + (24 * 60 * 60 * 1000);
       } else {
         target.level = Math.min(5, (target.level || 0) + 1);
-        target.correctCount = (target.correctCount || 0) + 1;
+        
+        // INCREMENT SEEN COUNT STEP-BY-STEP UP TO 2 (SEEN TWICE)
+        if (!target.isMastered) {
+          const currentSeen = target.seenCount || 0;
+          if (currentSeen < 2) {
+            target.seenCount = currentSeen + 1;
+          }
+        }
+
+        // SPACED MASTERY CHECK (Requires correct review across separate days / intervals)
+        const lastReviewTime = target.lastSuccessfulReviewTime || 0;
+        const hoursSinceLastReview = (now - lastReviewTime) / (1000 * 60 * 60);
+
+        if (hoursSinceLastReview >= 18 && target.seenCount >= 2) {
+          target.correctCount = (target.correctCount || 0) + 1;
+          if (target.correctCount >= 2) {
+            target.isMastered = true;
+          }
+        }
+        target.lastSuccessfulReviewTime = now;
 
         if (target.isMistake) {
           target.mistakeStage = (target.mistakeStage || 1) + 1;
@@ -4591,10 +4719,6 @@
             const nextHrs = stagesIntervals[target.mistakeStage - 1] || 48;
             target.nextReview = now + (nextHrs * 60 * 60 * 1000);
           }
-        }
-
-        if (target.correctCount >= 2) {
-          target.isMastered = true;
         }
 
         const intervals = [1, 3, 7, 14, 30];
@@ -4647,7 +4771,21 @@
           if (userChoice === card.mcq.correct) {
             correctCount++;
             target.level = Math.min(5, (target.level || 0) + 1);
-            target.correctCount = (target.correctCount || 0) + 1;
+
+            if (!target.isMastered) {
+              const currentSeen = target.seenCount || 0;
+              if (currentSeen < 2) target.seenCount = currentSeen + 1;
+            }
+
+            const lastReviewTime = target.lastSuccessfulReviewTime || 0;
+            const hoursSinceLastReview = (now - lastReviewTime) / (1000 * 60 * 60);
+
+            if (hoursSinceLastReview >= 18 && target.seenCount >= 2) {
+              target.correctCount = (target.correctCount || 0) + 1;
+              if (target.correctCount >= 2) target.isMastered = true;
+            }
+            target.lastSuccessfulReviewTime = now;
+
             if (target.isMistake) {
               target.mistakeStage = (target.mistakeStage || 1) + 1;
               if (target.mistakeStage >= 3 || target.correctCount >= 3) {
@@ -4656,7 +4794,6 @@
                 target.mistakeStage = 0;
               }
             }
-            if (target.correctCount >= 2) target.isMastered = true;
           } else {
             incorrectCount++;
             target.level = 0;
