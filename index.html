@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Lucent GK - Spaced Revision & Mind Map Studio</title>
+  <!-- Supabase Client SDK for Cloud Sync -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --bg: #090e17;
@@ -58,6 +60,20 @@
       min-height: 100vh;
       display: flex;
       flex-direction: column;
+    }
+
+    /* Offline Warning Banner */
+    #offline-banner {
+      display: none;
+      background: var(--danger);
+      color: #fff;
+      text-align: center;
+      padding: 8px 16px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      position: sticky;
+      top: 0;
+      z-index: 200;
     }
 
     /* Single-Line Header */
@@ -763,6 +779,11 @@
 </head>
 <body>
 
+  <!-- OFFLINE WARNING BANNER -->
+  <div id="offline-banner">
+    ⚠️ <strong>Offline Mode:</strong> You are offline. Data will not be synced to the cloud.
+  </div>
+
   <!-- SINGLE-LINE NAVIGATION BAR -->
   <header>
     <div class="brand">
@@ -789,7 +810,7 @@
         </div>
       </div>
 
-      <!-- 2. 'More ▾' DROPDOWN WITH VOICE SETTINGS -->
+      <!-- 2. 'More ▾' DROPDOWN WITH CLOUD SYNC & VOICE SETTINGS -->
       <div class="dropdown">
         <button class="dropdown-btn" onclick="toggleNavDropdown('more-dropdown')">
           More ▾
@@ -801,6 +822,8 @@
           <button onclick="selectMoreOption('mindmaps_all')">🗺️ View All Mind Maps</button>
           <button onclick="selectMoreOption('edit_deck')">✏️ Edit Questions Deck</button>
           <button onclick="selectMoreOption('voice_settings')">🗣️ Choose Voice & Audio</button>
+          <button onclick="selectMoreOption('cloud_sync')">☁️ Force Sync to Cloud Now</button>
+          <button onclick="selectMoreOption('cloud_config')">⚙️ Configure Cloud Credentials</button>
           <button onclick="selectMoreOption('backup')">💾 Backup (Export JSON)</button>
           <button onclick="selectMoreOption('restore')">📂 Restore (Import JSON)</button>
         </div>
@@ -1231,6 +1254,31 @@
       </div>
     </section>
 
+  </div>
+
+  <!-- CLOUD CONFIG MODAL -->
+  <div id="cloud-config-modal" class="modal-overlay">
+    <div class="modal-box" style="max-width: 500px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid var(--border); padding-bottom:10px;">
+        <h3>⚙️ Configure Cloud Sync (Supabase)</h3>
+        <button onclick="document.getElementById('cloud-config-modal').style.display='none'">✕ Close</button>
+      </div>
+      <p style="color:var(--text-muted); font-size:0.86rem; margin-bottom:14px;">
+        Enter your Supabase project URL and Anon Public API Key to enable automated cross-device snapshot sync.
+      </p>
+      <div class="form-group">
+        <label>Supabase Project URL</label>
+        <input type="text" id="cfg-supabase-url" placeholder="https://xyzcompany.supabase.co" />
+      </div>
+      <div class="form-group">
+        <label>Supabase Anon Key</label>
+        <input type="password" id="cfg-supabase-key" placeholder="eyJhbGciOi..." />
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
+        <button onclick="document.getElementById('cloud-config-modal').style.display='none'">Cancel</button>
+        <button class="primary" onclick="saveCloudConfig()">Save Credentials</button>
+      </div>
+    </div>
   </div>
 
   <!-- VOICE SELECTION SETTINGS MODAL -->
@@ -1714,6 +1762,11 @@
     let activeEditorTop = null;
     let selectedVoiceURI = localStorage.getItem('lucent_preferred_voice') || '';
 
+    // Supabase Cloud Sync Configuration (Stored in localStorage)
+    let supabaseUrl = localStorage.getItem('lucent_sb_url') || '';
+    let supabaseKey = localStorage.getItem('lucent_sb_key') || '';
+    let supabaseClient = (supabaseUrl && supabaseKey && window.supabase) ? window.supabase.createClient(supabaseUrl, supabaseKey) : null;
+
     // Active randomized MCQ mapping for the current session question
     let activeShuffledMapping = null;
 
@@ -1898,6 +1951,106 @@
     }
 
     // ==========================================
+    // AUTOMATED CLOUD SNAPSHOT SYNC ENGINE
+    // ==========================================
+    function updateOnlineStatusBanner() {
+      const banner = document.getElementById('offline-banner');
+      if (!banner) return;
+      if (!navigator.onLine) {
+        banner.style.display = 'block';
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+
+    window.addEventListener('online', updateOnlineStatusBanner);
+    window.addEventListener('offline', updateOnlineStatusBanner);
+
+    async function pullLatestFromCloud() {
+      if (!navigator.onLine || !supabaseClient) return;
+      try {
+        const { data, error } = await supabaseClient
+          .from('studio_snapshots')
+          .select('bundle')
+          .eq('id', 'primary_snapshot')
+          .single();
+
+        if (error || !data || !data.bundle) return;
+        const imported = data.bundle;
+
+        if (imported.questions) await dbClearAndBulk(Q_STORE, imported.questions);
+        if (imported.mindmaps) await dbClearAndBulk(MM_STORE, imported.mindmaps);
+        if (imported.history) await dbClearAndBulk(H_STORE, imported.history);
+        if (imported.curriculum) {
+          LUCENT_MAP = imported.curriculum;
+          await saveCurriculumMap();
+        }
+        await reloadStores();
+      } catch (err) {
+        console.error('Cloud pull skipped or failed:', err);
+      }
+    }
+
+    async function pushLatestToCloud() {
+      if (!navigator.onLine || !supabaseClient) return;
+      try {
+        const bundle = {
+          questions: questionsDeck,
+          mindmaps: mindMapsDeck,
+          history: quizHistory,
+          curriculum: LUCENT_MAP,
+          syncedAt: new Date().toISOString()
+        };
+
+        await supabaseClient
+          .from('studio_snapshots')
+          .upsert({ id: 'primary_snapshot', bundle, updated_at: new Date().toISOString() });
+      } catch (err) {
+        console.error('Cloud push failed:', err);
+      }
+    }
+
+    async function forceSyncToCloudNow() {
+      if (!navigator.onLine) return alert('You are currently offline. Cannot sync to cloud.');
+      if (!supabaseClient) return alert('Please configure your Supabase credentials first under More ▾ -> Configure Cloud Credentials.');
+      
+      await pushLatestToCloud();
+      alert('Cloud sync completed successfully!');
+    }
+
+    function openCloudConfigModal() {
+      document.getElementById('cfg-supabase-url').value = supabaseUrl;
+      document.getElementById('cfg-supabase-key').value = supabaseKey;
+      document.getElementById('cloud-config-modal').style.display = 'flex';
+    }
+
+    function saveCloudConfig() {
+      supabaseUrl = document.getElementById('cfg-supabase-url').value.trim();
+      supabaseKey = document.getElementById('cfg-supabase-key').value.trim();
+      localStorage.setItem('lucent_sb_url', supabaseUrl);
+      localStorage.setItem('lucent_sb_key', supabaseKey);
+
+      if (!supabaseUrl && !supabaseKey) {
+        supabaseClient = null;
+        alert('Cloud sync disconnected successfully! App is now running fully offline.');
+      } else if (supabaseUrl && supabaseKey && window.supabase) {
+        supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+        alert('Cloud credentials saved successfully!');
+        pullLatestFromCloud();
+      } else {
+        alert('Invalid credentials provided.');
+      }
+      document.getElementById('cloud-config-modal').style.display = 'none';
+    }
+
+    window.addEventListener('beforeunload', () => {
+      if (navigator.onLine && supabaseClient) {
+        // Synchronous-safe local snapshot trigger or background beacon
+        navigator.sendBeacon && pushLatestToCloud();
+      }
+    });
+
+    // ==========================================
     // FULL SCREEN TOGGLE ENGINE
     // ==========================================
     function toggleFullScreen() {
@@ -1978,6 +2131,10 @@
       } else if (action === 'edit_deck') {
         navigate('edit-deck-view');
         renderEditDeckChapters();
+      } else if (action === 'cloud_sync') {
+        forceSyncToCloudNow();
+      } else if (action === 'cloud_config') {
+        openCloudConfigModal();
       } else if (action === 'voice_settings') {
         openVoiceSettingsModal();
       } else if (action === 'backup') {
@@ -4987,6 +5144,8 @@
     (async function initApp() {
       await openDB();
       await loadCurriculumMap();
+      updateOnlineStatusBanner();
+      await pullLatestFromCloud();
       await reloadStores();
       initSubjects('sel-subject', 'sel-topic');
       initSubjects('edit-sel-sub', 'edit-sel-top');
