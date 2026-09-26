@@ -2003,9 +2003,13 @@
           syncedAt: new Date().toISOString()
         };
 
-        await supabaseClient
+        const { error } = await supabaseClient
           .from('studio_snapshots')
-          .upsert({ id: 'primary_snapshot', bundle, updated_at: new Date().toISOString() });
+          .upsert({ id: 'primary_snapshot', bundle });
+
+        if (error) {
+          console.error('Supabase push error:', error.message);
+        }
       } catch (err) {
         console.error('Cloud push failed:', err);
       }
