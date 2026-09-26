@@ -822,7 +822,8 @@
           <button onclick="selectMoreOption('mindmaps_all')">🗺️ View All Mind Maps</button>
           <button onclick="selectMoreOption('edit_deck')">✏️ Edit Questions Deck</button>
           <button onclick="selectMoreOption('voice_settings')">🗣️ Choose Voice & Audio</button>
-          <button onclick="selectMoreOption('cloud_sync')">☁️ Force Sync to Cloud Now</button>
+          <button onclick="selectMoreOption('cloud_sync')">☁️ Push Latest To Cloud</button>
+          <button onclick="selectMoreOption('cloud_pull')">📥 Pull Latest From Cloud</button>
           <button onclick="selectMoreOption('cloud_config')">⚙️ Configure Cloud Credentials</button>
           <button onclick="selectMoreOption('backup')">💾 Backup (Export JSON)</button>
           <button onclick="selectMoreOption('restore')">📂 Restore (Import JSON)</button>
@@ -1264,7 +1265,7 @@
         <button onclick="document.getElementById('cloud-config-modal').style.display='none'">✕ Close</button>
       </div>
       <p style="color:var(--text-muted); font-size:0.86rem; margin-bottom:14px;">
-        Enter your Supabase project URL and Anon Public API Key to enable automated cross-device snapshot sync.
+        Enter your Supabase project URL and Anon Public API Key to enable automated cross-device snapshot sync. Leave blank to disconnect.
       </p>
       <div class="form-group">
         <label>Supabase Project URL</label>
@@ -2015,7 +2016,15 @@
       if (!supabaseClient) return alert('Please configure your Supabase credentials first under More ▾ -> Configure Cloud Credentials.');
       
       await pushLatestToCloud();
-      alert('Cloud sync completed successfully!');
+      alert('Cloud push completed successfully!');
+    }
+
+    async function forcePullFromCloudNow() {
+      if (!navigator.onLine) return alert('You are currently offline. Cannot pull from cloud.');
+      if (!supabaseClient) return alert('Please configure your Supabase credentials first under More ▾ -> Configure Cloud Credentials.');
+      
+      await pullLatestFromCloud();
+      alert('Cloud pull completed successfully! Your local database is now updated.');
     }
 
     function openCloudConfigModal() {
@@ -2045,7 +2054,6 @@
 
     window.addEventListener('beforeunload', () => {
       if (navigator.onLine && supabaseClient) {
-        // Synchronous-safe local snapshot trigger or background beacon
         navigator.sendBeacon && pushLatestToCloud();
       }
     });
@@ -2133,6 +2141,8 @@
         renderEditDeckChapters();
       } else if (action === 'cloud_sync') {
         forceSyncToCloudNow();
+      } else if (action === 'cloud_pull') {
+        forcePullFromCloudNow();
       } else if (action === 'cloud_config') {
         openCloudConfigModal();
       } else if (action === 'voice_settings') {
@@ -4308,7 +4318,6 @@
         return;
       }
 
-      // Check if Mind Map Zoom Viewer is open
       const isViewerOpen = document.getElementById('viewer-modal').style.display === 'flex';
       if (isViewerOpen) {
         if (e.key === 'Escape') {
@@ -4328,7 +4337,6 @@
         }
       }
 
-      // Handle Arrow Navigation in Practice Mode
       const isQuizActive = document.getElementById('quiz').classList.contains('active');
       if (isQuizActive && activeTestMode === 'practice') {
         if (e.key === 'ArrowLeft') {
