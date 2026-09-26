@@ -1171,6 +1171,7 @@
             </button>
             <span class="badge" id="qz-sub">Subject</span>
             <span class="badge" id="qz-top" style="background:#233559;">Topic</span>
+            <span id="qz-diff-badge"></span>
             <span class="badge" id="qz-mode-badge" style="background:#3b82f6;">Mode</span>
           </div>
 
@@ -1375,6 +1376,7 @@
         <div style="display:flex; align-items:center; gap:8px;">
           <span class="badge" id="insp-sub">Subject</span>
           <span class="badge" id="insp-top" style="background:#233559;">Topic</span>
+          <span id="insp-diff-badge"></span>
         </div>
         <div style="display:flex; align-items:center; gap:10px;">
           <button id="insp-tts-play-btn" class="primary" style="padding:4px 10px; font-size:0.8rem;" onclick="startInspectReadAloud()" title="Read question aloud">🔊 Read Aloud</button>
@@ -1439,6 +1441,7 @@
         <div style="display:flex; align-items:center; gap:8px;">
           <span class="badge" id="rep-sub">Subject</span>
           <span class="badge" id="rep-top" style="background:#233559;">Topic</span>
+          <span id="rep-diff-badge"></span>
         </div>
         <div id="rep-counter" style="font-weight:700; color:var(--accent);">Question 1 of 10</div>
       </div>
@@ -1678,6 +1681,7 @@
             <option value="B">B</option>
             <option value="C">C</option>
             <option value="D">D</option>
+            <option value="E">E</option>
           </select>
         </div>
       </div>
@@ -1732,9 +1736,9 @@
           <li><strong>How to clear it:</strong> You cannot clear a mistake instantly. You must open the Mistake Bank and answer that question correctly across <strong>3 separate spaced reviews</strong> (e.g., today, tomorrow, and next week). Only then is it "delogged" and returned to normal.</li>
         </ul>
 
-        <h4 style="color: var(--sky); margin-top: 10px;">4. Saved Cards & History</h4>
+        <h4 style="color: var(--sky); margin-top: 10px;">4. Saved Cards & History Scorecard</h4>
         <ul style="margin-left: 20px; margin-bottom: 10px;">
-          <li><strong>⭐ Starred/Saved:</strong> If a question is tricky, click the Star icon. Practice all your starred questions together before an exam.</li>
+          <li><strong>⭐ Starred/Saved:</strong> If a question is tricky, click the Star icon. Practice all your saved questions together before an exam.</li>
           <li><strong>History:</strong> Want to know why your mock score was low? Go to History, click your past test, and review exactly what you marked wrong.</li>
           <li><strong>Mind Maps:</strong> Visual learner? Open the Mind Map Atlas to see flowcharts that connect to your questions.</li>
         </ul>
@@ -1823,6 +1827,35 @@
       ]
     };
 
+    const MASTER_SUBJECT_ORDER = [
+      "Ancient Indian History",
+      "Medieval Indian History",
+      "Modern Indian History",
+      "World History",
+      "Geography (World & India)",
+      "Indian Polity & Constitution",
+      "Indian Economy",
+      "Physics",
+      "Chemistry",
+      "Biology",
+      "Computer Awareness",
+      "Science and Technology",
+      "Static & Miscellaneous GK",
+      "Misc",
+      "General Chapter"
+    ];
+
+    function getSortedSubjectKeys() {
+      const allKeys = Object.keys(LUCENT_MAP);
+      return allKeys.sort((a, b) => {
+        let idxA = MASTER_SUBJECT_ORDER.indexOf(a);
+        let idxB = MASTER_SUBJECT_ORDER.indexOf(b);
+        if (idxA === -1) idxA = 999;
+        if (idxB === -1) idxB = 999;
+        return idxA - idxB;
+      });
+    }
+
     let LUCENT_MAP = {};
     let questionsDeck = [];
     let mindMapsDeck = [];
@@ -1831,6 +1864,7 @@
     let activeIndex = 0;
     let activeTestMode = 'practice';
     let mockUserAnswers = {};
+    let practiceSessionOutcomes = {};
     let timerInterval = null;
     let timerSeconds = 0;
     let sessionElapsedSeconds = 0;
@@ -1878,7 +1912,10 @@
       return new Promise((resolve, reject) => {
         const tx = dbInstance.transaction(storeName, 'readwrite');
         const req = tx.objectStore(storeName).put(item);
-        req.onsuccess = () => resolve();
+        req.onsuccess = () => {
+          scheduleAutoSync();
+          resolve();
+        };
         req.onerror = () => reject(req.error);
       });
     }
@@ -1887,7 +1924,10 @@
       return new Promise((resolve, reject) => {
         const tx = dbInstance.transaction(storeName, 'readwrite');
         const req = tx.objectStore(storeName).delete(id);
-        req.onsuccess = () => resolve();
+        req.onsuccess = () => {
+          scheduleAutoSync();
+          resolve();
+        };
         req.onerror = () => reject(req.error);
       });
     }
@@ -1898,7 +1938,10 @@
         const store = tx.objectStore(storeName);
         store.clear();
         items.forEach(it => store.put(it));
-        tx.oncomplete = () => resolve();
+        tx.oncomplete = () => {
+          scheduleAutoSync();
+          resolve();
+        };
         tx.onerror = () => reject(tx.error);
       });
     }
@@ -1949,6 +1992,24 @@
       await loadCurriculumMap();
       renderStats();
       renderDashboardMistakeQueue();
+    }
+
+    // ==========================================
+    // 5-MINUTE IDLE SILENT AUTO-SYNC ENGINE
+    // ==========================================
+    let autoSyncHandle = null;
+    function scheduleAutoSync() {
+      if (!navigator.onLine || !supabaseClient) return;
+      if (autoSyncHandle) clearTimeout(autoSyncHandle);
+      
+      autoSyncHandle = setTimeout(async () => {
+        try {
+          await pushLatestToCloud();
+          console.log('5-minute idle background auto-sync completed smoothly.');
+        } catch (err) {
+          console.error('Background auto-sync failed:', err);
+        }
+      }, 300000); // 300,000 ms = exactly 5 minutes of study pause time
     }
 
     // ==========================================
@@ -2253,7 +2314,7 @@
       });
 
       const matchedChapters = [];
-      Object.keys(LUCENT_MAP).forEach(sub => {
+      getSortedSubjectKeys().forEach(sub => {
         if (sub.toLowerCase().includes(query)) {
           matchedChapters.push({ type: 'subject', name: sub });
         }
@@ -2409,7 +2470,7 @@
       const subSel = document.getElementById(subId);
       if (!subSel) return;
       subSel.innerHTML = '';
-      Object.keys(LUCENT_MAP).forEach(sub => {
+      getSortedSubjectKeys().forEach(sub => {
         const opt = document.createElement('option');
         opt.value = sub;
         opt.textContent = sub;
@@ -2695,7 +2756,7 @@
       if (!box) return;
       box.innerHTML = '';
 
-      Object.keys(LUCENT_MAP).forEach((sub, idx) => {
+      getSortedSubjectKeys().forEach((sub, idx) => {
         const subQuestions = questionsDeck.filter(c => c.subject === sub);
         const topics = LUCENT_MAP[sub] || [];
 
@@ -3068,7 +3129,8 @@
       });
 
       let subIdx = 0;
-      Object.keys(grouped).forEach(sub => {
+      getSortedSubjectKeys().forEach(sub => {
+        if (!grouped[sub]) return;
         subIdx++;
         const subDiv = document.createElement('div');
         subDiv.className = 'card';
@@ -3148,7 +3210,8 @@
       });
 
       let subIdx = 0;
-      Object.keys(grouped).forEach(sub => {
+      getSortedSubjectKeys().forEach(sub => {
+        if (!grouped[sub]) return;
         subIdx++;
         const subDiv = document.createElement('div');
         subDiv.className = 'card';
@@ -3251,7 +3314,8 @@
         });
 
         let subIdx = 0;
-        Object.keys(grouped).forEach(sub => {
+        getSortedSubjectKeys().forEach(sub => {
+          if (!grouped[sub]) return;
           subIdx++;
           const subContainer = document.createElement('div');
           subContainer.style.cssText = "margin-bottom: 14px; background: #0e1628; border: 1px solid var(--border); border-radius: 8px; padding: 12px;";
@@ -3337,21 +3401,18 @@
       let unattempted = 0;
 
       for (const card of currentSession) {
-        const userChoice = mockUserAnswers[card.id];
-        if (!userChoice) {
+        const outcome = practiceSessionOutcomes[card.id];
+        if (outcome === undefined) {
           unattempted++;
-        } else if (card.type === 'mcq' && card.mcq) {
-          const mapping = card._shuffledMapping;
-          const userChoiceOrig = mapping ? mapping.displayToOriginal[userChoice] : userChoice;
-          if (userChoiceOrig === card.mcq.correct) correctCount++;
-          else incorrectCount++;
-        } else {
+        } else if (outcome === true) {
           correctCount++;
+        } else {
+          incorrectCount++;
         }
       }
 
       const total = currentSession.length;
-      const pct = total > 0 ? Math.round((correctCount / total) * 100) : 100;
+      const pct = total > 0 ? Math.round((correctCount / total) * 100) : 0;
       const mins = Math.floor(sessionElapsedSeconds / 60);
       const secs = sessionElapsedSeconds % 60;
       const durStr = `${mins}m ${secs}s`;
@@ -3362,13 +3423,13 @@
         mode: activeTestMode === 'exam' ? 'Exam Simulation' : 'Practice Mode',
         scope: currentSessionScope,
         total,
-        correct: correctCount || total,
+        correct: correctCount,
         incorrect: incorrectCount,
         unattempted,
         percentage: pct,
         duration: durStr,
         sessionCards: JSON.parse(JSON.stringify(currentSession)),
-        userAnswers: JSON.parse(JSON.stringify(mockUserAnswers))
+        userAnswers: JSON.parse(JSON.stringify(practiceSessionOutcomes))
       });
 
       alert('Session explicitly ended and saved to History successfully!');
@@ -3395,7 +3456,7 @@
       const container = document.getElementById('manager-sections-list');
       container.innerHTML = '';
 
-      Object.keys(LUCENT_MAP).forEach(sub => {
+      getSortedSubjectKeys().forEach(sub => {
         const chapters = LUCENT_MAP[sub] || [];
         const isDefaultSection = DEFAULT_LUCENT_MAP[sub] !== undefined;
 
@@ -3595,6 +3656,7 @@
       document.getElementById('insp-sub').textContent = card.subject;
       document.getElementById('insp-top').textContent = card.topic;
       document.getElementById('insp-prompt').textContent = card.prompt || '';
+      document.getElementById('insp-diff-badge').innerHTML = getDifficultyBadge(card.difficulty);
 
       updateInspectModalSeenUI(card);
 
@@ -3739,11 +3801,20 @@
       document.getElementById('rep-top').textContent = card.topic || 'Topic';
       document.getElementById('rep-counter').textContent = `Question ${activeReplayIndex + 1} of ${total}`;
       document.getElementById('rep-prompt').textContent = card.prompt || '';
+      document.getElementById('rep-diff-badge').innerHTML = getDifficultyBadge(card.difficulty);
 
       const pill = document.getElementById('replay-result-pill');
-      if (!userChoice) {
+      if (userChoice === undefined) {
         pill.className = 'replay-status-badge unattempted';
         pill.textContent = '⚪ Unattempted in Test';
+      } else if (typeof userChoice === 'boolean') {
+        if (userChoice) {
+          pill.className = 'replay-status-badge correct';
+          pill.textContent = '✓ Answered Correctly';
+        } else {
+          pill.className = 'replay-status-badge wrong';
+          pill.textContent = '✕ Answered Incorrectly';
+        }
       } else if (card.type === 'mcq' && card.mcq) {
         const mapping = card._shuffledMapping;
         const userChoiceOrig = mapping ? mapping.displayToOriginal[userChoice] : userChoice;
@@ -3981,7 +4052,7 @@
         bannerEl.style.display = 'none';
       }
 
-      Object.keys(LUCENT_MAP).forEach((sub, idx) => {
+      getSortedSubjectKeys().forEach((sub, idx) => {
         const subQuestions = questionsDeck.filter(c => c.subject === sub);
         const subMindMaps = mindMapsDeck.filter(m => m.subject === sub);
         const topics = LUCENT_MAP[sub] || [];
@@ -4185,7 +4256,7 @@
 
       if (filterSel.options.length <= 1) {
         filterSel.innerHTML = '<option value="ALL">All Subjects</option>';
-        Object.keys(LUCENT_MAP).forEach(sub => {
+        getSortedSubjectKeys().forEach(sub => {
           const opt = document.createElement('option');
           opt.value = sub;
           opt.textContent = sub;
@@ -4650,6 +4721,7 @@
       activeTestMode = mode;
       activeIndex = 0;
       mockUserAnswers = {};
+      practiceSessionOutcomes = {};
       sessionElapsedSeconds = 0;
 
       // FRESH JUMBLE GENERATION FOR EVERY NEW SESSION LAUNCH
@@ -4766,6 +4838,7 @@
 
       document.getElementById('qz-sub').textContent = c.subject;
       document.getElementById('qz-top').textContent = c.topic;
+      document.getElementById('qz-diff-badge').innerHTML = getDifficultyBadge(c.difficulty);
       document.getElementById('qz-mode-badge').textContent = (activeTestMode === 'exam') ? 'Exam Mode' : 'Practice Mode';
       document.getElementById('qz-progress').textContent = `Question ${activeIndex + 1} of ${currentSession.length}`;
       document.getElementById('qz-prompt').textContent = c.prompt || '';
@@ -4854,7 +4927,8 @@
 
     function handlePracticeMCQClick(el, chosenDisplay, correctDisplay) {
       document.querySelectorAll('.mcq-option').forEach(btn => btn.onclick = null);
-      if (chosenDisplay === correctDisplay) {
+      const isCorrect = (chosenDisplay === correctDisplay);
+      if (isCorrect) {
         el.classList.add('correct');
       } else {
         el.classList.add('wrong');
@@ -4862,6 +4936,7 @@
           if (btn.innerText.startsWith(correctDisplay)) btn.classList.add('correct');
         });
       }
+      practiceSessionOutcomes[currentSession[activeIndex].id] = isCorrect;
       showSolution();
     }
 
@@ -4890,6 +4965,7 @@
     async function submitPracticeOutcome(correct) {
       stopReadAloud();
       const card = currentSession[activeIndex];
+      practiceSessionOutcomes[card.id] = correct;
       const target = questionsDeck.find(c => c.id === card.id);
       const now = Date.now();
       const day = 24 * 60 * 60 * 1000;
@@ -4945,7 +5021,7 @@
 
       const isLastQuestion = (activeIndex === currentSession.length - 1);
       if (isLastQuestion) {
-        if (confirm('Practice session finished! Would you like to save this session to your History?')) {
+        if (confirm('Practice session finished! Would you like to save this session to your History scorecards?')) {
           await explicitlyEndAndSaveSession();
         } else {
           exitPracticeSession();
@@ -4981,53 +5057,60 @@
 
         if (!userChoiceDisplay) {
           unattempted++;
-        } else if (card.type === 'mcq' && card.mcq) {
-          const mapping = card._shuffledMapping;
-          const userChoiceOrig = mapping ? mapping.displayToOriginal[userChoiceDisplay] : userChoiceDisplay;
+        } else {
+          let isCorrect = true;
+          if (card.type === 'mcq' && card.mcq) {
+            const mapping = card._shuffledMapping;
+            const userChoiceOrig = mapping ? mapping.displayToOriginal[userChoiceDisplay] : userChoiceDisplay;
+            isCorrect = (userChoiceOrig === card.mcq.correct);
+          }
 
-          if (userChoiceOrig === card.mcq.correct) {
+          if (isCorrect) {
             correctCount++;
-            target.level = Math.min(5, (target.level || 0) + 1);
-
-            if (!target.isMastered) {
-              const currentSeen = target.seenCount || 0;
-              if (currentSeen < 2) target.seenCount = currentSeen + 1;
-            }
-
-            const lastReviewTime = target.lastSuccessfulReviewTime || 0;
-            const hoursSinceLastReview = (now - lastReviewTime) / (1000 * 60 * 60);
-
-            if (hoursSinceLastReview >= 18 && target.seenCount >= 2) {
-              target.correctCount = (target.correctCount || 0) + 1;
-              if (target.correctCount >= 2) target.isMastered = true;
-            }
-            target.lastSuccessfulReviewTime = now;
-
-            if (target.isMistake) {
-              target.mistakeStage = (target.mistakeStage || 1) + 1;
-              if (target.mistakeStage >= 3 || target.correctCount >= 3) {
-                target.isMistake = false;
-                target.mistakes = 0;
-                target.mistakeStage = 0;
+            if (target) {
+              target.level = Math.min(5, (target.level || 0) + 1);
+              if (!target.isMastered) {
+                const currentSeen = target.seenCount || 0;
+                if (currentSeen < 2) target.seenCount = currentSeen + 1;
               }
+              const lastReviewTime = target.lastSuccessfulReviewTime || 0;
+              const hoursSinceLastReview = (now - lastReviewTime) / (1000 * 60 * 60);
+
+              if (hoursSinceLastReview >= 18 && target.seenCount >= 2) {
+                target.correctCount = (target.correctCount || 0) + 1;
+                if (target.correctCount >= 2) target.isMastered = true;
+              }
+              target.lastSuccessfulReviewTime = now;
+
+              if (target.isMistake) {
+                target.mistakeStage = (target.mistakeStage || 1) + 1;
+                if (target.mistakeStage >= 3 || target.correctCount >= 3) {
+                  target.isMistake = false;
+                  target.mistakes = 0;
+                  target.mistakeStage = 0;
+                }
+              }
+              await dbPut(Q_STORE, target);
             }
           } else {
             incorrectCount++;
-            target.level = 0;
-            target.mistakes = (target.mistakes || 0) + 1;
-            target.isMistake = true;
-            target.lastMistakeTime = now;
-            target.mistakeStage = 1;
-            target.nextReview = now + (24 * 60 * 60 * 1000);
+            if (target) {
+              target.level = 0;
+              target.mistakes = (target.mistakes || 0) + 1;
+              target.isMistake = true;
+              target.lastMistakeTime = now;
+              target.mistakeStage = 1;
+              target.nextReview = now + (24 * 60 * 60 * 1000);
+              await dbPut(Q_STORE, target);
+            }
           }
-          await dbPut(Q_STORE, target);
         }
       }
 
       await reloadStores();
 
       const total = currentSession.length;
-      const pct = Math.round((correctCount / total) * 100);
+      const pct = total > 0 ? Math.round((correctCount / total) * 100) : 0;
       const mins = Math.floor(sessionElapsedSeconds / 60);
       const secs = sessionElapsedSeconds % 60;
       const durStr = `${mins}m ${secs}s`;
@@ -5068,7 +5151,10 @@
 
       if (stTotal) stTotal.textContent = questionsDeck.length;
       if (stSaved) stSaved.textContent = questionsDeck.filter(c => c.isStarred).length;
-      if (stDue) stDue.textContent = questionsDeck.filter(c => c.nextReview <= now).length;
+      
+      // Synchronized due count: includes both scheduled date due AND active mistakes
+      const dueCount = questionsDeck.filter(c => (c.nextReview <= now || c.isMistake)).length;
+      if (stDue) stDue.textContent = dueCount;
       if (stMistakes) stMistakes.textContent = questionsDeck.filter(c => c.isMistake || c.mistakes > 0).length;
     }
 
@@ -5130,22 +5216,19 @@
               LUCENT_MAP = cMap;
               await saveCurriculumMap();
             }
-            await reloadStores();
-            alert('Safe merge complete!');
           } else {
-            if (confirm('Warning: This will overwrite data created after this backup. Continue?')) {
-              await dbClearAndBulk(Q_STORE, qList);
-              await dbClearAndBulk(MM_STORE, mmList);
-              await dbClearAndBulk(H_STORE, hList);
-              if (cMap) {
-                LUCENT_MAP = cMap;
-                await saveCurriculumMap();
-              }
-              await reloadStores();
-              alert('Full restore complete.');
+            await dbClearAndBulk(Q_STORE, qList);
+            await dbClearAndBulk(MM_STORE, mmList);
+            await dbClearAndBulk(H_STORE, hList);
+            if (cMap) {
+              LUCENT_MAP = cMap;
+              await saveCurriculumMap();
             }
           }
-          location.reload();
+
+          await reloadStores();
+          alert('Import complete! Your local database has been updated. Click "Push Latest To Cloud" whenever you want to sync this new data to Supabase.');
+          navigate('dashboard');
         } catch (err) {
           alert('Failed to parse backup file.');
         }
