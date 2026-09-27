@@ -260,7 +260,7 @@
       right: 0;
       top: calc(100% + 8px);
       background-color: #111a2e;
-      min-width: 240px;
+      min-width: 270px;
       box-shadow: 0 14px 35px rgba(0, 0, 0, 0.85);
       border: 1px solid var(--accent);
       border-radius: 8px;
@@ -279,20 +279,64 @@
       background: transparent;
       border: none;
       border-radius: 0;
-      padding: 11px 16px;
+      padding: 10px 16px;
       font-size: 0.86rem;
       color: var(--text);
       border-bottom: 1px solid rgba(255, 255, 255, 0.07);
       display: block;
     }
 
-    .dropdown-content button:last-child {
+    .dropdown-item-row {
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      padding: 10px 16px;
+      font-size: 0.86rem;
+      color: var(--text);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+    }
+
+    .dropdown-content button:last-child, .dropdown-item-row:last-child {
       border-bottom: none;
     }
 
-    .dropdown-content button:hover {
+    .dropdown-content button:hover, .dropdown-item-row:hover {
       background: var(--card-alt);
       color: var(--accent);
+    }
+
+    /* Sliding Switch Pill Styles */
+    .switch-pill {
+      width: 40px;
+      height: 20px;
+      border-radius: 10px;
+      position: relative;
+      transition: background-color 0.25s ease;
+      background: var(--danger);
+      flex-shrink: 0;
+    }
+    .switch-pill.active {
+      background: var(--success);
+    }
+    .switch-knob {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #ffffff;
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+    }
+    .switch-pill.active .switch-knob {
+      transform: translateX(20px);
     }
 
     .container {
@@ -810,18 +854,27 @@
         </div>
       </div>
 
-      <!-- 2. 'More ▾' DROPDOWN WITH CLOUD SYNC & VOICE SETTINGS -->
+      <!-- 2. 'More ▾' DROPDOWN WITH FIXED INSTRUCTION MANUAL & SLIDING TOGGLE -->
       <div class="dropdown">
         <button class="dropdown-btn" onclick="toggleNavDropdown('more-dropdown')">
           More ▾
         </button>
         <div id="more-dropdown" class="dropdown-content">
-          <button onclick="selectMoreOption('instructions')"><span style="display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border:1.5px solid var(--accent); border-radius:50%; font-size:0.7rem; font-weight:800; margin-right:4px; color:var(--accent);">i</span> Instruction Manual</button>
+          <button onclick="selectMoreOption('instructions')"><span style="display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border:1.5px solid var(--accent); border-radius:50%; font-size:0.7rem; font-weight:800; margin-right:6px; color:var(--accent);">i</span> Instruction Manual</button>
           <button onclick="selectMoreOption('mock')">🎲 Random Mock Test</button>
           <button onclick="selectMoreOption('due')">⚡ Due Cards</button>
           <button onclick="selectMoreOption('mindmaps_all')">🗺️ View All Mind Maps</button>
           <button onclick="selectMoreOption('edit_deck')">✏️ Edit Questions Deck</button>
           <button onclick="selectMoreOption('voice_settings')">🗣️ Choose Voice & Audio</button>
+          
+          <!-- Interactive Sliding Toggle Switch Row -->
+          <div class="dropdown-item-row" onclick="toggleAutoSyncPreference()">
+            <span>🔄 Background Auto-Sync</span>
+            <div id="autosync-switch-pill" class="switch-pill active">
+              <div class="switch-knob"></div>
+            </div>
+          </div>
+
           <button onclick="selectMoreOption('cloud_sync')">☁️ Push Latest To Cloud</button>
           <button onclick="selectMoreOption('cloud_pull')">📥 Pull Latest From Cloud</button>
           <button onclick="selectMoreOption('cloud_config')">⚙️ Configure Cloud Credentials</button>
@@ -1772,6 +1825,9 @@
     let supabaseKey = localStorage.getItem('lucent_sb_key') || '';
     let supabaseClient = (supabaseUrl && supabaseKey && window.supabase) ? window.supabase.createClient(supabaseUrl, supabaseKey) : null;
 
+    // Auto-Sync Toggle Preference (Default to Enabled)
+    let isAutoSyncEnabled = localStorage.getItem('lucent_autosync_active') !== 'false';
+
     // Active randomized MCQ mapping for the current session question
     let activeShuffledMapping = null;
 
@@ -1999,7 +2055,7 @@
     // ==========================================
     let autoSyncHandle = null;
     function scheduleAutoSync() {
-      if (!navigator.onLine || !supabaseClient) return;
+      if (!isAutoSyncEnabled || !navigator.onLine || !supabaseClient) return;
       if (autoSyncHandle) clearTimeout(autoSyncHandle);
       
       autoSyncHandle = setTimeout(async () => {
@@ -2010,6 +2066,29 @@
           console.error('Background auto-sync failed:', err);
         }
       }, 300000); // 300,000 ms = exactly 5 minutes of study pause time
+    }
+
+    function toggleAutoSyncPreference() {
+      isAutoSyncEnabled = !isAutoSyncEnabled;
+      localStorage.setItem('lucent_autosync_active', isAutoSyncEnabled);
+      updateAutoSyncToggleUI();
+      if (isAutoSyncEnabled) {
+        alert('Auto-sync enabled (5-minute idle background sync active).');
+        scheduleAutoSync();
+      } else {
+        if (autoSyncHandle) clearTimeout(autoSyncHandle);
+        alert('Auto-sync disabled. You can still sync manually via "Push Latest To Cloud".');
+      }
+    }
+
+    function updateAutoSyncToggleUI() {
+      const pill = document.getElementById('autosync-switch-pill');
+      if (!pill) return;
+      if (isAutoSyncEnabled) {
+        pill.classList.add('active');
+      } else {
+        pill.classList.remove('active');
+      }
     }
 
     // ==========================================
@@ -2028,9 +2107,11 @@
     window.addEventListener('online', updateOnlineStatusBanner);
     window.addEventListener('offline', updateOnlineStatusBanner);
 
-    async function pullLatestFromCloud() {
+    async function pullLatestFromCloud(force = false) {
       if (!navigator.onLine || !supabaseClient) return;
       try {
+        if (!force && questionsDeck.length > 0) return;
+
         const { data, error } = await supabaseClient
           .from('studio_snapshots')
           .select('bundle')
@@ -2088,7 +2169,7 @@
       if (!navigator.onLine) return alert('You are currently offline. Cannot pull from cloud.');
       if (!supabaseClient) return alert('Please configure your Supabase credentials first under More ▾ -> Configure Cloud Credentials.');
       
-      await pullLatestFromCloud();
+      await pullLatestFromCloud(true);
       alert('Cloud pull completed successfully! Your local database is now updated.');
     }
 
@@ -2110,7 +2191,7 @@
       } else if (supabaseUrl && supabaseKey && window.supabase) {
         supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
         alert('Cloud credentials saved successfully!');
-        pullLatestFromCloud();
+        pullLatestFromCloud(true);
       } else {
         alert('Invalid credentials provided.');
       }
@@ -2118,7 +2199,7 @@
     }
 
     window.addEventListener('beforeunload', () => {
-      if (navigator.onLine && supabaseClient) {
+      if (isAutoSyncEnabled && navigator.onLine && supabaseClient) {
         navigator.sendBeacon && pushLatestToCloud();
       }
     });
@@ -5152,7 +5233,6 @@
       if (stTotal) stTotal.textContent = questionsDeck.length;
       if (stSaved) stSaved.textContent = questionsDeck.filter(c => c.isStarred).length;
       
-      // Synchronized due count: includes both scheduled date due AND active mistakes
       const dueCount = questionsDeck.filter(c => (c.nextReview <= now || c.isMistake)).length;
       if (stDue) stDue.textContent = dueCount;
       if (stMistakes) stMistakes.textContent = questionsDeck.filter(c => c.isMistake || c.mistakes > 0).length;
@@ -5240,7 +5320,10 @@
       await openDB();
       await loadCurriculumMap();
       updateOnlineStatusBanner();
-      await pullLatestFromCloud();
+      updateAutoSyncToggleUI();
+      if (questionsDeck.length === 0) {
+        await pullLatestFromCloud(false);
+      }
       await reloadStores();
       initSubjects('sel-subject', 'sel-topic');
       initSubjects('edit-sel-sub', 'edit-sel-top');
