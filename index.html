@@ -311,6 +311,67 @@
       color: var(--accent);
     }
 
+    /* MS Word-Like Rich Text Formatting Toolbar & Editor Box */
+    .rich-editor-toolbar {
+      display: flex;
+      gap: 4px;
+      background: #192642;
+      padding: 6px;
+      border: 1px solid var(--border);
+      border-bottom: none;
+      border-top-left-radius: 8px;
+      border-top-right-radius: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .rich-editor-toolbar button {
+      background: #090e17;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 4px 8px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .rich-editor-toolbar button:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--card-alt);
+    }
+    .rich-editor-box {
+      width: 100%;
+      min-height: 130px;
+      background: #090e17;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 12px;
+      border-bottom-left-radius: 8px;
+      border-bottom-right-radius: 8px;
+      outline: none;
+      overflow-y: auto;
+      line-height: 1.6;
+      font-size: 0.95rem;
+    }
+    .rich-editor-box:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 8px rgba(245, 158, 11, 0.25);
+    }
+    .rich-editor-box ul, .rich-editor-box ol {
+      margin-left: 22px;
+      margin-top: 6px;
+      margin-bottom: 6px;
+    }
+    .rich-explanation-body ul, .rich-explanation-body ol {
+      margin-left: 22px;
+      margin-top: 6px;
+      margin-bottom: 6px;
+    }
+    .rich-explanation-body p {
+      margin-bottom: 8px;
+    }
+
     /* Sliding Switch Pill Styles */
     .switch-pill {
       width: 40px;
@@ -854,7 +915,7 @@
         </div>
       </div>
 
-      <!-- 2. 'More ▾' DROPDOWN WITH FIXED INSTRUCTION MANUAL & SLIDING TOGGLE -->
+      <!-- 2. 'More ▾' DROPDOWN WITH SLIDING AUTO-SYNC SWITCH & INSTRUCTION MANUAL -->
       <div class="dropdown">
         <button class="dropdown-btn" onclick="toggleNavDropdown('more-dropdown')">
           More ▾
@@ -1202,15 +1263,31 @@
 
         <div class="form-group" style="margin-top: 14px;">
           <label>Detailed Answer / Solution Notes & Personal Mnemonics</label>
-          <textarea id="in-a" rows="2" placeholder="Explain the correct answer or add your own notes in your own words..."></textarea>
-          <div class="dropzone" id="dz-a">Drag & Drop solution picture here or paste with <code>Ctrl+V</code></div>
+          
+          <!-- Exact Formatting Toolbar Requested -->
+          <div class="rich-editor-toolbar">
+            <button type="button" onclick="formatRichText('in-a', 'bold')" title="Bold (Ctrl+B)"><b>B</b></button>
+            <button type="button" onclick="formatRichText('in-a', 'underline')" title="Underline (Ctrl+U)"><u>U</u></button>
+            <button type="button" onclick="formatRichText('in-a', 'insertUnorderedList')" title="Bullet List">• Bullet</button>
+            <button type="button" onclick="formatTextColor('in-a', '#38bdf8')" title="Blue Text">🔵 Blue</button>
+            <button type="button" onclick="formatTextColor('in-a', '#22c55e')" title="Green Text">🟢 Green</button>
+            <button type="button" onclick="formatTextColor('in-a', '#f59e0b')" title="Orange Text">🟠 Orange</button>
+            <button type="button" onclick="formatTextColor('in-a', '#ef4444')" title="Red Text">🔴 Red</button>
+            <button type="button" onclick="removeFormatting('in-a')" title="Clear Style">🧹 Clear</button>
+            <button type="button" onclick="insertArrowSymbol('in-a')" title="Insert Arrow (➔)">➔ Arrow</button>
+            <button type="button" onclick="document.getElementById('in-a').innerHTML=''" title="Clear All">🗑️ Clear All</button>
+          </div>
+          <!-- Editable Box -->
+          <div id="in-a" class="rich-editor-box" contenteditable="true" placeholder="Type explanation or paste directly from Gemini with bullets and bolding intact..."></div>
+
+          <div class="dropzone" id="dz-a" style="margin-top: 10px;">Drag & Drop solution picture here or paste with <code>Ctrl+V</code></div>
           <div class="img-preview-wrapper">
             <img id="prev-a" class="preview-box" />
             <button id="rm-a" class="btn-remove-img" onclick="clearNewImage('a')">✕ Remove Image</button>
           </div>
         </div>
 
-        <button class="primary" onclick="saveQuestion()">Save to Question Deck</button>
+        <button class="primary" onclick="saveQuestion()" style="margin-top: 10px;">Save to Question Deck</button>
       </div>
     </section>
 
@@ -1265,7 +1342,7 @@
         </div>
 
         <div id="qz-sol-box" style="display: none; margin-top: 20px; background: #090e17; padding: 18px; border-radius: 8px; border-left: 4px solid var(--accent); text-align: left;">
-          <div id="qz-sol-text"></div>
+          <div id="qz-sol-text" class="rich-explanation-body"></div>
           <img id="qz-img-a" class="quiz-media" style="display:none;" />
         </div>
 
@@ -1451,7 +1528,7 @@
         <div id="insp-mcq-box" class="mcq-container" style="display:none; margin: 16px auto;"></div>
 
         <div id="insp-sol-box" style="margin-top: 20px; background: #090e17; padding: 18px; border-radius: 8px; border-left: 4px solid var(--accent); text-align: left;">
-          <div id="insp-sol-text"></div>
+          <div id="insp-sol-text" class="rich-explanation-body"></div>
           <img id="insp-img-a" class="quiz-media" style="display:none; max-height:260px;" />
         </div>
       </div>
@@ -1460,12 +1537,26 @@
 
   <!-- PERSONAL NOTE MODAL -->
   <div id="note-modal" class="modal-overlay">
-    <div class="modal-box" style="max-width: 500px;">
+    <div class="modal-box" style="max-width: 520px;">
       <h3>📝 Add Personal Note / Mnemonic</h3>
       <input type="hidden" id="note-card-id" />
       <div class="form-group" style="margin-top: 12px;">
         <label>Your Notes in Your Own Words</label>
-        <textarea id="note-text-input" rows="4" placeholder="Type personal explanations, shortcut tricks, or memory tips here..."></textarea>
+        
+        <!-- Exact Formatting Toolbar -->
+        <div class="rich-editor-toolbar">
+          <button type="button" onclick="formatRichText('note-text-input', 'bold')" title="Bold (Ctrl+B)"><b>B</b></button>
+          <button type="button" onclick="formatRichText('note-text-input', 'underline')" title="Underline (Ctrl+U)"><u>U</u></button>
+          <button type="button" onclick="formatRichText('note-text-input', 'insertUnorderedList')" title="Bullet List">• Bullet</button>
+          <button type="button" onclick="formatTextColor('note-text-input', '#38bdf8')" title="Blue Text">🔵 Blue</button>
+          <button type="button" onclick="formatTextColor('note-text-input', '#22c55e')" title="Green Text">🟢 Green</button>
+          <button type="button" onclick="formatTextColor('note-text-input', '#f59e0b')" title="Orange Text">🟠 Orange</button>
+          <button type="button" onclick="formatTextColor('note-text-input', '#ef4444')" title="Red Text">🔴 Red</button>
+          <button type="button" onclick="removeFormatting('note-text-input')" title="Clear Style">🧹 Clear</button>
+          <button type="button" onclick="insertArrowSymbol('note-text-input')" title="Insert Arrow (➔)">➔ Arrow</button>
+          <button type="button" onclick="document.getElementById('note-text-input').innerHTML=''" title="Clear All">🗑️ Clear All</button>
+        </div>
+        <div id="note-text-input" class="rich-editor-box" contenteditable="true" style="min-height:120px;" placeholder="Type personal explanations or mnemonics here..."></div>
       </div>
       <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
         <button onclick="document.getElementById('note-modal').style.display='none'">Cancel</button>
@@ -1506,7 +1597,7 @@
         <div id="rep-mcq-box" class="mcq-container" style="display:none; margin: 16px auto;"></div>
 
         <div id="rep-sol-box" style="margin-top: 20px; background: #090e17; padding: 18px; border-radius: 8px; border-left: 4px solid var(--accent); text-align: left;">
-          <div id="rep-sol-text"></div>
+          <div id="rep-sol-text" class="rich-explanation-body"></div>
           <img id="rep-img-a" class="quiz-media" style="display:none; max-height:260px;" />
         </div>
 
@@ -1554,8 +1645,21 @@
       </div>
 
       <div class="form-group">
-        <label>Key Takeaways / Quick Notes (Optional)</label>
-        <textarea id="mm-in-notes" rows="3" placeholder="Add bullet points or quick memory mnemonics for this mind map..."></textarea>
+        <label>Key Takeaways / Quick Notes</label>
+        <!-- Exact Formatting Toolbar -->
+        <div class="rich-editor-toolbar">
+          <button type="button" onclick="formatRichText('mm-in-notes', 'bold')" title="Bold (Ctrl+B)"><b>B</b></button>
+          <button type="button" onclick="formatRichText('mm-in-notes', 'underline')" title="Underline (Ctrl+U)"><u>U</u></button>
+          <button type="button" onclick="formatRichText('mm-in-notes', 'insertUnorderedList')" title="Bullet List">• Bullet</button>
+          <button type="button" onclick="formatTextColor('mm-in-notes', '#38bdf8')" title="Blue Text">🔵 Blue</button>
+          <button type="button" onclick="formatTextColor('mm-in-notes', '#22c55e')" title="Green Text">🟢 Green</button>
+          <button type="button" onclick="formatTextColor('mm-in-notes', '#f59e0b')" title="Orange Text">🟠 Orange</button>
+          <button type="button" onclick="formatTextColor('mm-in-notes', '#ef4444')" title="Red Text">🔴 Red</button>
+          <button type="button" onclick="removeFormatting('mm-in-notes')" title="Clear Style">🧹 Clear</button>
+          <button type="button" onclick="insertArrowSymbol('mm-in-notes')" title="Insert Arrow (➔)">➔ Arrow</button>
+          <button type="button" onclick="document.getElementById('mm-in-notes').innerHTML=''" title="Clear All">🗑️ Clear All</button>
+        </div>
+        <div id="mm-in-notes" class="rich-editor-box" contenteditable="true" style="min-height:110px;" placeholder="Add bullet points or quick memory mnemonics for this mind map..."></div>
       </div>
 
       <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
@@ -1672,7 +1776,7 @@
 
   <!-- EDIT QUESTION MODAL -->
   <div id="edit-modal" class="modal-overlay">
-    <div class="modal-box">
+    <div class="modal-box" style="max-width: 800px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
         <h2>✏️ Edit & Rectify Question</h2>
         <button onclick="closeEditModal()">✕</button>
@@ -1741,8 +1845,23 @@
 
       <div class="form-group" style="margin-top: 14px;">
         <label>Detailed Answer / Solution Notes & Personal Mnemonics</label>
-        <textarea id="edit-in-a" rows="2"></textarea>
-        <div class="dropzone" id="edit-dz-a">Drop new picture or paste with <code>Ctrl+V</code> to replace</div>
+        
+        <!-- Exact Formatting Toolbar -->
+        <div class="rich-editor-toolbar">
+          <button type="button" onclick="formatRichText('edit-in-a', 'bold')" title="Bold (Ctrl+B)"><b>B</b></button>
+          <button type="button" onclick="formatRichText('edit-in-a', 'underline')" title="Underline (Ctrl+U)"><u>U</u></button>
+          <button type="button" onclick="formatRichText('edit-in-a', 'insertUnorderedList')" title="Bullet List">• Bullet</button>
+          <button type="button" onclick="formatTextColor('edit-in-a', '#38bdf8')" title="Blue Text">🔵 Blue</button>
+          <button type="button" onclick="formatTextColor('edit-in-a', '#22c55e')" title="Green Text">🟢 Green</button>
+          <button type="button" onclick="formatTextColor('edit-in-a', '#f59e0b')" title="Orange Text">🟠 Orange</button>
+          <button type="button" onclick="formatTextColor('edit-in-a', '#ef4444')" title="Red Text">🔴 Red</button>
+          <button type="button" onclick="removeFormatting('edit-in-a')" title="Clear Style">🧹 Clear</button>
+          <button type="button" onclick="insertArrowSymbol('edit-in-a')" title="Insert Arrow (➔)">➔ Arrow</button>
+          <button type="button" onclick="document.getElementById('edit-in-a').innerHTML=''" title="Clear All">🗑️ Clear All</button>
+        </div>
+        <div id="edit-in-a" class="rich-editor-box" contenteditable="true" style="min-height:140px;"></div>
+
+        <div class="dropzone" id="edit-dz-a" style="margin-top: 10px;">Drop new picture or paste with <code>Ctrl+V</code> to replace</div>
         <div class="img-preview-wrapper">
           <img id="edit-prev-a" class="preview-box" />
           <button id="edit-rm-a" class="btn-remove-img" onclick="clearEditImage('a')">✕ Remove Image</button>
@@ -2051,7 +2170,7 @@
     }
 
     // ==========================================
-    // 5-MINUTE IDLE SILENT AUTO-SYNC ENGINE
+    // 5-MINUTE IDLE SILENT AUTO-SYNC ENGINE (STRICTLY GATED)
     // ==========================================
     let autoSyncHandle = null;
     function scheduleAutoSync() {
@@ -2059,13 +2178,14 @@
       if (autoSyncHandle) clearTimeout(autoSyncHandle);
       
       autoSyncHandle = setTimeout(async () => {
+        if (!isAutoSyncEnabled) return; // Strict safeguard check
         try {
           await pushLatestToCloud();
           console.log('5-minute idle background auto-sync completed smoothly.');
         } catch (err) {
           console.error('Background auto-sync failed:', err);
         }
-      }, 300000); // 300,000 ms = exactly 5 minutes of study pause time
+      }, 300000);
     }
 
     function toggleAutoSyncPreference() {
@@ -2077,7 +2197,7 @@
         scheduleAutoSync();
       } else {
         if (autoSyncHandle) clearTimeout(autoSyncHandle);
-        alert('Auto-sync disabled. You can still sync manually via "Push Latest To Cloud".');
+        alert('Auto-sync disabled. Your local device data is now strictly protected from online retrieval or overwriting.');
       }
     }
 
@@ -2108,7 +2228,7 @@
     window.addEventListener('offline', updateOnlineStatusBanner);
 
     async function pullLatestFromCloud(force = false) {
-      if (!navigator.onLine || !supabaseClient) return;
+      if (!isAutoSyncEnabled || !navigator.onLine || !supabaseClient) return; // STRICTLY GATED: Never pull if auto-sync is OFF
       try {
         if (!force && questionsDeck.length > 0) return;
 
@@ -2135,7 +2255,7 @@
     }
 
     async function pushLatestToCloud() {
-      if (!navigator.onLine || !supabaseClient) return;
+      if (!isAutoSyncEnabled || !navigator.onLine || !supabaseClient) return;
       try {
         const bundle = {
           questions: questionsDeck,
@@ -2191,7 +2311,7 @@
       } else if (supabaseUrl && supabaseKey && window.supabase) {
         supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
         alert('Cloud credentials saved successfully!');
-        pullLatestFromCloud(true);
+        if (isAutoSyncEnabled) pullLatestFromCloud(true);
       } else {
         alert('Invalid credentials provided.');
       }
@@ -2361,6 +2481,30 @@
       utterance.pitch = 1.15;
       if (chosen) utterance.voice = chosen;
       window.speechSynthesis.speak(utterance);
+    }
+
+    // ==========================================
+    // MS WORD-LIKE RICH TEXT FORMATTING HELPERS
+    // ==========================================
+    function formatRichText(elId, command) {
+      document.getElementById(elId).focus();
+      document.execCommand(command, false, null);
+    }
+    function formatTextColor(elId, colorHex) {
+      document.getElementById(elId).focus();
+      document.execCommand('styleWithCSS', false, true);
+      document.execCommand('foreColor', false, colorHex);
+    }
+    function removeFormatting(elId) {
+      const box = document.getElementById(elId);
+      box.focus();
+      document.execCommand('removeFormat', false, null);
+      document.execCommand('foreColor', false, '#f8fafc');
+    }
+    function insertArrowSymbol(elId) {
+      const box = document.getElementById(elId);
+      box.focus();
+      document.execCommand('insertText', false, '➔ ');
     }
 
     // ==========================================
@@ -2609,6 +2753,7 @@
       if (viewId === 'edit-deck-view') renderEditDeckChapters();
       if (viewId === 'add') {
         initSubjects('sel-subject', 'sel-topic');
+        document.getElementById('in-a').innerHTML = '';
       }
     }
 
@@ -2660,9 +2805,9 @@
     }
 
     bindDropAndPaste('dz-q', 'in-q', 'prev-q', 'rm-q', (s) => tempNewQImg = s);
-    bindDropAndPaste('dz-a', 'in-a', 'prev-a', 'rm-a', (s) => tempNewAImg = s);
+    bindDropAndPaste('dz-a', null, 'prev-a', 'rm-a', (s) => tempNewAImg = s);
     bindDropAndPaste('edit-dz-q', 'edit-in-q', 'edit-prev-q', 'edit-rm-q', (s) => tempEditQImg = s);
-    bindDropAndPaste('edit-dz-a', 'edit-in-a', 'edit-prev-a', 'edit-rm-a', (s) => tempEditAImg = s);
+    bindDropAndPaste('edit-dz-a', null, 'edit-prev-a', 'edit-rm-a', (s) => tempEditAImg = s);
     bindDropAndPaste('mm-dz', null, 'mm-prev-img', 'mm-rm-btn', (s) => tempMindMapImg = s);
 
     document.addEventListener('paste', async (e) => {
@@ -2957,7 +3102,7 @@
     }
 
     // ==========================================
-    // BULLETPROOF SYNCHRONIZED TTS ENGINE (READ & STOP)
+    // BULLETPROOF SYNCHRONIZED TTS ENGINE (READ & STOP) - Strips NBSP & HTML
     // ==========================================
     function getSelectedVoiceObj() {
       if (!('speechSynthesis' in window)) return null;
@@ -2973,6 +3118,16 @@
       return voices.find(v => v.lang.startsWith('en')) || voices[0] || null;
     }
 
+    function cleanHtmlForTTS(htmlStr) {
+      if (!htmlStr) return '';
+      // Remove HTML tags, convert &nbsp; to space, and clean duplicate spaces
+      return htmlStr
+        .replace(/<[^>]*>?/gm, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
     function startReadAloud() {
       if (!('speechSynthesis' in window)) {
         return alert('Text-to-speech is not supported by your browser.');
@@ -2984,12 +3139,12 @@
       const c = currentSession[activeIndex];
       if (!c) return;
 
-      let textToSpeak = `Question. ${c.prompt || ''}. `;
+      let textToSpeak = `Question. ${cleanHtmlForTTS(c.prompt || '')}. `;
       if (c.type === 'mcq' && c.mcq && activeShuffledMapping) {
         ['A', 'B', 'C', 'D'].forEach(displayLetter => {
           const origLetter = activeShuffledMapping.displayToOriginal[displayLetter];
           const optText = c.mcq[origLetter];
-          textToSpeak += `Option ${displayLetter}: ${optText}. `;
+          textToSpeak += `Option ${displayLetter}: ${cleanHtmlForTTS(optText)}. `;
         });
       }
 
@@ -3042,13 +3197,13 @@
       const card = questionsDeck.find(c => c.id === activeInspectCardId);
       if (!card) return;
 
-      let text = `Question. ${card.prompt || ''}. `;
+      let text = `Question. ${cleanHtmlForTTS(card.prompt || '')}. `;
       if (card.type === 'mcq' && card.mcq) {
-        text += `Option A: ${card.mcq.A}. Option B: ${card.mcq.B}. Option C: ${card.mcq.C}. Option D: ${card.mcq.D}. `;
+        text += `Option A: ${cleanHtmlForTTS(card.mcq.A)}. Option B: ${cleanHtmlForTTS(card.mcq.B)}. Option C: ${cleanHtmlForTTS(card.mcq.C)}. Option D: ${cleanHtmlForTTS(card.mcq.D)}. `;
         text += `Correct Option: ${card.mcq.correct}. `;
       }
       if (card.answer) {
-        text += `Solution and Notes: ${card.answer}.`;
+        text += `Solution and Notes: ${cleanHtmlForTTS(card.answer)}.`;
       }
 
       window.speechSynthesis.cancel();
@@ -3097,18 +3252,18 @@
       const card = activeReplayRecord.sessionCards[activeReplayIndex];
       if (!card) return;
 
-      let text = `Question. ${card.prompt || ''}. `;
+      let text = `Question. ${cleanHtmlForTTS(card.prompt || '')}. `;
       if (card.type === 'mcq' && card.mcq) {
         const mapping = card._shuffledMapping;
         const correctDisplay = mapping ? mapping.originalToDisplay[card.mcq.correct] : card.mcq.correct;
         ['A', 'B', 'C', 'D'].forEach(displayLetter => {
           const origLetter = mapping ? mapping.displayToOriginal[displayLetter] : displayLetter;
-          text += `Option ${displayLetter}: ${card.mcq[origLetter]}. `;
+          text += `Option ${displayLetter}: ${cleanHtmlForTTS(card.mcq[origLetter])}. `;
         });
         text += `Correct Option: ${correctDisplay}. `;
       }
       if (card.answer) {
-        text += `Solution and Notes: ${card.answer}.`;
+        text += `Solution and Notes: ${cleanHtmlForTTS(card.answer)}.`;
       }
 
       window.speechSynthesis.cancel();
@@ -3158,13 +3313,13 @@
       const card = questionsDeck.find(c => c.id === cardId);
       if (!card) return;
       document.getElementById('note-card-id').value = card.id;
-      document.getElementById('note-text-input').value = card.answer || '';
+      document.getElementById('note-text-input').innerHTML = card.answer || '';
       document.getElementById('note-modal').style.display = 'flex';
     }
 
     async function savePersonalNote() {
       const cardId = document.getElementById('note-card-id').value;
-      const text = document.getElementById('note-text-input').value.trim();
+      const text = document.getElementById('note-text-input').innerHTML.trim();
       const target = questionsDeck.find(c => c.id === cardId);
       if (!target) return;
 
@@ -3783,7 +3938,7 @@
         solHtml += `<p style="color:var(--accent); font-weight:700; margin-bottom:6px;">Correct Option: ${card.mcq.correct} - ${escapeHtml(card.mcq[card.mcq.correct])}</p>`;
       }
       if (card.answer) {
-        solHtml += `<p>${escapeHtml(card.answer)}</p>`;
+        solHtml += card.answer;
       } else if (card.type !== 'mcq') {
         solHtml += `<p style="color:var(--text-muted);">No additional notes entered.</p>`;
       }
@@ -3967,7 +4122,7 @@
         solHtml += `<p style="color:var(--accent); font-weight:700; margin-bottom:6px;">Correct Option: ${correctDisplay} - ${escapeHtml(card.mcq[card.mcq.correct])}</p>`;
       }
       if (card.answer) {
-        solHtml += `<p>${escapeHtml(card.answer)}</p>`;
+        solHtml += card.answer;
       }
       solText.innerHTML = solHtml;
 
@@ -4257,7 +4412,7 @@
         syncTopics('mm-sel-sub', 'mm-sel-top');
         document.getElementById('mm-sel-top').value = mapItem.topic;
         document.getElementById('mm-in-title').value = mapItem.title;
-        document.getElementById('mm-in-notes').value = mapItem.notes || '';
+        document.getElementById('mm-in-notes').innerHTML = mapItem.notes || '';
         
         tempMindMapImg = mapItem.img;
         const pr = document.getElementById('mm-prev-img');
@@ -4269,7 +4424,7 @@
         document.getElementById('mm-modal-title').textContent = '🗺️ Add Mind Map / Diagram';
         document.getElementById('mm-edit-id').value = '';
         document.getElementById('mm-in-title').value = '';
-        document.getElementById('mm-in-notes').value = '';
+        document.getElementById('mm-in-notes').innerHTML = '';
         clearMindMapImage();
 
         const filterSel = document.getElementById('sel-mindmap-filter');
@@ -4297,7 +4452,7 @@
       const subject = document.getElementById('mm-sel-sub').value;
       const topic = document.getElementById('mm-sel-top').value;
       const title = document.getElementById('mm-in-title').value.trim();
-      const notes = document.getElementById('mm-in-notes').value.trim();
+      const notes = document.getElementById('mm-in-notes').innerHTML.trim();
       const editId = document.getElementById('mm-edit-id').value;
 
       if (!title) return alert('Please enter a title for this mind map.');
@@ -4308,7 +4463,7 @@
         subject,
         topic,
         title,
-        notes,
+        notes, // Stores rich HTML content
         img: tempMindMapImg,
         seenCount: 0,
         isMastered: false,
@@ -4386,7 +4541,7 @@
                 <span class="badge">${escapeHtml(item.topic)}</span>
                 <span style="font-size:0.75rem; color:var(--text-muted);">${getSeenStateLabel(item)}</span>
               </div>
-              ${item.notes ? `<p style="font-size:0.8rem; color:var(--text-muted); margin-top:8px;">${escapeHtml(item.notes)}</p>` : ''}
+              ${item.notes ? `<div style="font-size:0.83rem; color:var(--text-muted); margin-top:8px;" class="rich-explanation-body">${item.notes}</div>` : ''}
             </div>
             <div class="mindmap-actions">
               <button onclick="openViewerByIndex(${index})">🔍 Inspect</button>
@@ -4515,7 +4670,7 @@
         const typeEl = document.getElementById('sel-type');
         const diffEl = document.getElementById('sel-difficulty');
         const promptEl = document.getElementById('in-q');
-        const answerEl = document.getElementById('in-a');
+        const answerBox = document.getElementById('in-a');
 
         if (!subjectEl || !topicEl || !promptEl) {
           return alert('Error: Add question form elements not found.');
@@ -4526,7 +4681,7 @@
         const type = typeEl ? typeEl.value : 'mcq';
         const difficulty = diffEl ? diffEl.value : 'medium';
         const prompt = promptEl.value.trim();
-        const answer = answerEl ? answerEl.value.trim() : '';
+        const answer = answerBox ? answerBox.innerHTML.trim() : '';
 
         if (!prompt && !tempNewQImg) return alert('Please enter question text or add an image.');
 
@@ -4552,7 +4707,7 @@
           type,
           difficulty,
           prompt,
-          answer,
+          answer, // Stores formatted rich HTML content
           mcq: mcqData,
           qImg: tempNewQImg,
           aImg: tempNewAImg,
@@ -4574,7 +4729,7 @@
         await reloadStores();
 
         promptEl.value = '';
-        if (answerEl) answerEl.value = '';
+        if (answerBox) answerBox.innerHTML = '';
         if (document.getElementById('opt-a')) document.getElementById('opt-a').value = '';
         if (document.getElementById('opt-b')) document.getElementById('opt-b').value = '';
         if (document.getElementById('opt-c')) document.getElementById('opt-c').value = '';
@@ -4604,7 +4759,7 @@
       document.getElementById('edit-sel-difficulty').value = card.difficulty || 'medium';
 
       document.getElementById('edit-in-q').value = card.prompt || '';
-      document.getElementById('edit-in-a').value = card.answer || '';
+      document.getElementById('edit-in-a').innerHTML = card.answer || '';
 
       if (card.type === 'mcq' && card.mcq) {
         document.getElementById('edit-opt-a').value = card.mcq.A || '';
@@ -4646,7 +4801,7 @@
       target.type = document.getElementById('edit-sel-type').value;
       target.difficulty = document.getElementById('edit-sel-difficulty').value;
       target.prompt = prompt;
-      target.answer = document.getElementById('edit-in-a').value.trim();
+      target.answer = document.getElementById('edit-in-a').innerHTML.trim();
       target.qImg = tempEditQImg;
       target.aImg = tempEditAImg;
 
@@ -5032,7 +5187,7 @@
         const correctDisplay = activeShuffledMapping ? activeShuffledMapping.originalToDisplay[c.mcq.correct] : c.mcq.correct;
         html += `<p style="color:var(--accent); font-weight:700; margin-bottom:6px;">Correct Option: ${correctDisplay} - ${escapeHtml(c.mcq[c.mcq.correct])}</p>`;
       }
-      if (c.answer) html += `<p>${escapeHtml(c.answer)}</p>`;
+      if (c.answer) html += c.answer; // Render rich HTML notes correctly
       solText.innerHTML = html;
 
       if (c.aImg) { solImg.src = c.aImg; solImg.style.display = 'block'; }
@@ -5307,7 +5462,7 @@
           }
 
           await reloadStores();
-          alert('Import complete! Your local database has been updated. Click "Push Latest To Cloud" whenever you want to sync this new data to Supabase.');
+          alert('Import complete! Your local database has been updated.');
           navigate('dashboard');
         } catch (err) {
           alert('Failed to parse backup file.');
@@ -5321,7 +5476,8 @@
       await loadCurriculumMap();
       updateOnlineStatusBanner();
       updateAutoSyncToggleUI();
-      if (questionsDeck.length === 0) {
+      // STRICTLY GATED: Never pull from cloud on startup if background auto-sync is turned OFF
+      if (isAutoSyncEnabled && questionsDeck.length === 0) {
         await pullLatestFromCloud(false);
       }
       await reloadStores();
