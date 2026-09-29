@@ -353,6 +353,8 @@
       overflow-y: auto;
       line-height: 1.6;
       font-size: 0.95rem;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
     .rich-editor-box:focus {
       border-color: var(--accent);
@@ -362,6 +364,10 @@
       margin-left: 22px;
       margin-top: 6px;
       margin-bottom: 6px;
+    }
+    .rich-explanation-body {
+      white-space: pre-wrap;
+      word-break: break-word;
     }
     .rich-explanation-body ul, .rich-explanation-body ol {
       margin-left: 22px;
@@ -1264,7 +1270,7 @@
         <div class="form-group" style="margin-top: 14px;">
           <label>Detailed Answer / Solution Notes & Personal Mnemonics</label>
           
-          <!-- Exact Formatting Toolbar Requested -->
+          <!-- Exact Formatting Toolbar -->
           <div class="rich-editor-toolbar">
             <button type="button" onclick="formatRichText('in-a', 'bold')" title="Bold (Ctrl+B)"><b>B</b></button>
             <button type="button" onclick="formatRichText('in-a', 'underline')" title="Underline (Ctrl+U)"><u>U</u></button>
@@ -1323,7 +1329,7 @@
           </div>
         </div>
 
-        <h2 id="qz-prompt" style="margin: 20px 0; font-size: 1.3rem;">Question</h2>
+        <h2 id="qz-prompt" style="margin: 20px 0; font-size: 1.3rem; white-space: pre-wrap; word-break: break-word;">Question</h2>
         <img id="qz-img-q" class="quiz-media" style="display:none;" />
 
         <div id="qz-mcq-box" class="mcq-container" style="display:none;"></div>
@@ -1523,7 +1529,7 @@
       </div>
 
       <div style="text-align:center;">
-        <h2 id="insp-prompt" style="font-size:1.25rem; margin:16px 0;">Question Prompt</h2>
+        <h2 id="insp-prompt" style="font-size:1.25rem; margin:16px 0; white-space: pre-wrap; word-break: break-word;">Question Prompt</h2>
         <img id="insp-img-q" class="quiz-media" style="display:none; max-height:280px;" />
         <div id="insp-mcq-box" class="mcq-container" style="display:none; margin: 16px auto;"></div>
 
@@ -1591,7 +1597,7 @@
       </div>
 
       <div style="text-align:center;">
-        <h2 id="rep-prompt" style="font-size:1.25rem; margin:16px 0;">Question Prompt</h2>
+        <h2 id="rep-prompt" style="font-size:1.25rem; margin:16px 0; white-space: pre-wrap; word-break: break-word;">Question Prompt</h2>
         <img id="rep-img-q" class="quiz-media" style="display:none; max-height:280px;" />
 
         <div id="rep-mcq-box" class="mcq-container" style="display:none; margin: 16px auto;"></div>
@@ -1636,8 +1642,19 @@
       </div>
 
       <div class="form-group">
-        <label>Mind Map Image (Drag & Drop or Paste Screenshot with <code>Ctrl+V</code>)</label>
-        <div class="dropzone" id="mm-dz">Drop mind map image here or press <code>Ctrl+V</code></div>
+        <label>Mind Map Image (Gallery, Camera, Drag & Drop, or Paste)</label>
+        
+        <!-- Multi-Source Upload Action Buttons -->
+        <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
+          <button type="button" class="primary" onclick="document.getElementById('mm-file-picker').click()" style="flex:1; min-width:140px;">📂 Choose Gallery</button>
+          <button type="button" onclick="document.getElementById('mm-camera-picker').click()" style="flex:1; min-width:140px; background:#192642; border-color:var(--sky); color:var(--sky); font-weight:700;">📷 Capture Camera</button>
+        </div>
+
+        <!-- Hidden file inputs for gallery and camera capture -->
+        <input type="file" id="mm-file-picker" accept="image/*" style="display:none" onchange="handleMindMapFileSelect(event)" />
+        <input type="file" id="mm-camera-picker" accept="image/*" capture="environment" style="display:none" onchange="handleMindMapFileSelect(event)" />
+
+        <div class="dropzone" id="mm-dz">Drop mind map image here, paste with <code>Ctrl+V</code>, or use buttons above</div>
         <div class="img-preview-wrapper">
           <img id="mm-prev-img" class="preview-box" />
           <button id="mm-rm-btn" class="btn-remove-img" onclick="clearMindMapImage()">✕ Remove Image</button>
@@ -2170,6 +2187,29 @@
     }
 
     // ==========================================
+    // GLOBAL UNIVERSAL TAB INDENTATION HANDLER
+    // ==========================================
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab') {
+        const target = e.target;
+        const isTextarea = target.tagName === 'TEXTAREA';
+        const isEditable = target.getAttribute('contenteditable') === 'true';
+
+        if (isTextarea || isEditable) {
+          e.preventDefault();
+          if (isTextarea) {
+            const start = target.selectionStart;
+            const end = target.selectionEnd;
+            target.value = target.value.substring(0, start) + '\t' + target.value.substring(end);
+            target.selectionStart = target.selectionEnd = start + 1;
+          } else if (isEditable) {
+            document.execCommand('insertText', false, '\t');
+          }
+        }
+      }
+    });
+
+    // ==========================================
     // 5-MINUTE IDLE SILENT AUTO-SYNC ENGINE (STRICTLY GATED)
     // ==========================================
     let autoSyncHandle = null;
@@ -2178,7 +2218,7 @@
       if (autoSyncHandle) clearTimeout(autoSyncHandle);
       
       autoSyncHandle = setTimeout(async () => {
-        if (!isAutoSyncEnabled) return; // Strict safeguard check
+        if (!isAutoSyncEnabled) return;
         try {
           await pushLatestToCloud();
           console.log('5-minute idle background auto-sync completed smoothly.');
@@ -2228,7 +2268,7 @@
     window.addEventListener('offline', updateOnlineStatusBanner);
 
     async function pullLatestFromCloud(force = false) {
-      if (!isAutoSyncEnabled || !navigator.onLine || !supabaseClient) return; // STRICTLY GATED: Never pull if auto-sync is OFF
+      if (!isAutoSyncEnabled || !navigator.onLine || !supabaseClient) return;
       try {
         if (!force && questionsDeck.length > 0) return;
 
@@ -2826,6 +2866,19 @@
       }
     });
 
+    async function handleMindMapFileSelect(event) {
+      const file = event.target.files[0];
+      if (file && file.type.startsWith('image/')) {
+        const comp = await compressImageFile(file);
+        tempMindMapImg = comp;
+        const pr = document.getElementById('mm-prev-img');
+        const rm = document.getElementById('mm-rm-btn');
+        if (pr) { pr.src = comp; pr.style.display = 'block'; }
+        if (rm) { rm.style.display = 'inline-block'; }
+      }
+      event.target.value = ''; // Reset file input
+    }
+
     function clearNewImage(type) {
       if (type === 'q') { tempNewQImg = null; document.getElementById('prev-q').style.display = 'none'; document.getElementById('rm-q').style.display = 'none'; }
       else { tempNewAImg = null; document.getElementById('prev-a').style.display = 'none'; document.getElementById('rm-a').style.display = 'none'; }
@@ -3120,7 +3173,6 @@
 
     function cleanHtmlForTTS(htmlStr) {
       if (!htmlStr) return '';
-      // Remove HTML tags, convert &nbsp; to space, and clean duplicate spaces
       return htmlStr
         .replace(/<[^>]*>?/gm, ' ')
         .replace(/&nbsp;/gi, ' ')
@@ -3187,7 +3239,6 @@
       if (stopBtn) stopBtn.style.display = 'none';
     }
 
-    // Read Aloud for Card Inspect Modal
     function startInspectReadAloud() {
       if (!activeInspectCardId || !('speechSynthesis' in window)) return;
 
@@ -3242,7 +3293,6 @@
       if (stopBtn) stopBtn.style.display = 'none';
     }
 
-    // Read Aloud for History Replay Modal
     function startReplayReadAloud() {
       if (!activeReplayRecord || !activeReplayRecord.sessionCards || !('speechSynthesis' in window)) return;
 
@@ -4080,7 +4130,6 @@
         mcqBox.innerHTML = '';
         const mapping = card._shuffledMapping;
         const correctDisplay = mapping ? mapping.originalToDisplay[card.mcq.correct] : card.mcq.correct;
-        const userChoiceOrig = mapping ? mapping.displayToOriginal[userChoice] : userChoice;
 
         ['A', 'B', 'C', 'D'].forEach(displayLetter => {
           const origLetter = mapping ? mapping.displayToOriginal[displayLetter] : displayLetter;
@@ -4456,14 +4505,14 @@
       const editId = document.getElementById('mm-edit-id').value;
 
       if (!title) return alert('Please enter a title for this mind map.');
-      if (!tempMindMapImg) return alert('Please upload, drop, or paste a mind map screenshot.');
+      if (!tempMindMapImg) return alert('Please upload, drop, or capture a mind map image.');
 
       const mapObj = {
         id: editId || ('mm_' + Date.now() + Math.random().toString(36).substr(2, 4)),
         subject,
         topic,
         title,
-        notes, // Stores rich HTML content
+        notes,
         img: tempMindMapImg,
         seenCount: 0,
         isMastered: false,
@@ -4707,7 +4756,7 @@
           type,
           difficulty,
           prompt,
-          answer, // Stores formatted rich HTML content
+          answer,
           mcq: mcqData,
           qImg: tempNewQImg,
           aImg: tempNewAImg,
@@ -4960,7 +5009,6 @@
       practiceSessionOutcomes = {};
       sessionElapsedSeconds = 0;
 
-      // FRESH JUMBLE GENERATION FOR EVERY NEW SESSION LAUNCH
       currentSession.forEach(c => {
         if (c.type === 'mcq' && c.mcq) {
           const keys = ['A', 'B', 'C', 'D'];
@@ -5187,7 +5235,7 @@
         const correctDisplay = activeShuffledMapping ? activeShuffledMapping.originalToDisplay[c.mcq.correct] : c.mcq.correct;
         html += `<p style="color:var(--accent); font-weight:700; margin-bottom:6px;">Correct Option: ${correctDisplay} - ${escapeHtml(c.mcq[c.mcq.correct])}</p>`;
       }
-      if (c.answer) html += c.answer; // Render rich HTML notes correctly
+      if (c.answer) html += c.answer;
       solText.innerHTML = html;
 
       if (c.aImg) { solImg.src = c.aImg; solImg.style.display = 'block'; }
@@ -5476,7 +5524,6 @@
       await loadCurriculumMap();
       updateOnlineStatusBanner();
       updateAutoSyncToggleUI();
-      // STRICTLY GATED: Never pull from cloud on startup if background auto-sync is turned OFF
       if (isAutoSyncEnabled && questionsDeck.length === 0) {
         await pullLatestFromCloud(false);
       }
